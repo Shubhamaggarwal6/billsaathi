@@ -164,7 +164,8 @@ export interface Payment {
   customerId: string;
   amount: number;
   date: string;
-  mode: 'Cash' | 'UPI' | 'Bank Transfer' | 'Cheque';
+  mode: 'Cash' | 'UPI' | 'Bank Transfer' | 'RTGS' | 'Cheque';
+  invoiceId?: string;
   note: string;
   timestamp: string;
 }
