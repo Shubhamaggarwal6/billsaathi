@@ -252,7 +252,7 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
             </div>
           )}
 
-          <div className="mt-4 flex gap-2 flex-wrap">
+          <div className="mt-4 flex gap-2 flex-wrap text-xs md:text-sm">
             <Button size="sm" variant="outline" onClick={() => {
               const firm = users.find(u => u.id === inv.userId);
               printGSTInvoice(inv, firm);
