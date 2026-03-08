@@ -257,6 +257,17 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
               const firm = users.find(u => u.id === inv.userId);
               printGSTInvoice(inv, firm);
             }}><Printer className="w-4 h-4 mr-1" /> Print</Button>
+            <Button size="sm" variant="outline" className="bg-destructive/10 text-destructive border-destructive/20" onClick={() => {
+              const firm = users.find(u => u.id === inv.userId);
+              downloadInvoicePDF(inv, firm);
+            }}><FileText className="w-4 h-4 mr-1" /> PDF</Button>
+            <Button size="sm" variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20" onClick={() => downloadInvoiceExcel(inv)}>
+              <FileSpreadsheet className="w-4 h-4 mr-1" /> Excel
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => {
+              const firm = users.find(u => u.id === inv.userId);
+              printGSTInvoice(inv, firm, 'all');
+            }}><Printer className="w-4 h-4 mr-1" /> 3 Copies</Button>
             {!readOnly && (
               <>
                 <Button size="sm" variant="outline" onClick={() => setShowStatusModal(inv)}>✏️ Status</Button>
