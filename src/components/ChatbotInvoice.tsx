@@ -418,7 +418,14 @@ export default function ChatbotInvoice() {
         totalGst,
         grandTotal: totalAmount + totalGst,
         status: 'pending' as const,
-        createdBy: currentUser!.username,
+        createdBy: {
+          id: currentUser!.id,
+          name: currentUser!.role === 'employee'
+            ? currentUser!.username
+            : currentUser!.firmName || currentUser!.username,
+          role: currentUser!.role,
+          timestamp: new Date().toISOString(),
+        },
       };
       setInvoices(prev => [...prev, invoice]);
       setProducts(prev => prev.map(p => {
