@@ -186,6 +186,9 @@ export default function AdminDashboard() {
                     <td className="py-2.5 px-2"><SubscriptionBadge endDate={u.subscriptionEnd} compact /></td>
                     <td className="py-2.5 px-2">
                       <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => setViewUser(u)} className="text-xs h-7">
+                          <Eye className="w-3 h-3 mr-1" /> View
+                        </Button>
                         <Button size="sm" variant="ghost" onClick={() => toggleActive(u.id)} className="text-xs h-7">
                           {u.active ? '🟢' : '🔴'}
                         </Button>
