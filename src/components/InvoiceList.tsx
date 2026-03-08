@@ -12,10 +12,11 @@ interface Props {
   readOnly?: boolean;
   filterUserId?: string;
   filterEmployeeId?: string;
+  allowEmployeeEdit?: boolean;
 }
 
-export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }: Props) {
-  const { currentUser, users, invoices, setInvoices } = useApp();
+export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId, allowEmployeeEdit }: Props) {
+  const { currentUser, users, invoices, setInvoices, setProducts, products } = useApp();
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -66,6 +67,19 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
     setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: newStatus } : i));
     setShowStatusModal(null);
   };
+
+  const handleDeleteInvoice = (inv: Invoice) => {
+    if (!confirm(`Kya aap "${inv.invoiceNumber}" invoice delete karna chahte hain?`)) return;
+    // Restore stock
+    setProducts(prev => prev.map(p => {
+      const item = inv.items.find(i => i.productId === p.id);
+      return item ? { ...p, stock: p.stock + item.quantity } : p;
+    }));
+    setInvoices(prev => prev.filter(i => i.id !== inv.id));
+    setViewInvoice(null);
+  };
+
+  const canEditDelete = allowEmployeeEdit || (!readOnly && currentUser?.role === 'user');
 
   const firm = owner || currentUser;
 
@@ -272,7 +286,8 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
                   <td className="py-2.5 px-3">
                     <div className="flex gap-1">
                       <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => setViewInvoice(inv)}>👁️</Button>
-                      {!readOnly && <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => setShowStatusModal(inv)}>✏️</Button>}
+                      {canEditDelete && <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => setShowStatusModal(inv)}>✏️</Button>}
+                      {canEditDelete && <Button size="sm" variant="ghost" className="text-xs h-7 text-destructive" onClick={() => handleDeleteInvoice(inv)}>🗑️</Button>}
                     </div>
                   </td>
                 </tr>

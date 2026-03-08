@@ -6,9 +6,10 @@ import SubscriptionBadge from '@/components/SubscriptionBadge';
 import ChatbotInvoice from '@/components/ChatbotInvoice';
 import CustomerManager from '@/components/CustomerManager';
 import ProductManager from '@/components/ProductManager';
-import { MessageSquare, Users, Package, LogOut, FileText, AlertTriangle } from 'lucide-react';
+import InvoiceList from '@/components/InvoiceList';
+import { MessageSquare, Users, Package, LogOut, FileText, AlertTriangle, ClipboardList } from 'lucide-react';
 
-type Tab = 'invoice' | 'customers' | 'products' | 'stock';
+type Tab = 'invoice' | 'invoices' | 'customers' | 'products' | 'stock';
 
 export default function EmployeeDashboard() {
   const { currentUser, users, setCurrentUser } = useApp();
@@ -36,6 +37,7 @@ export default function EmployeeDashboard() {
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'invoice', label: 'Invoice Banao', icon: <MessageSquare className="w-4 h-4" /> },
+    { id: 'invoices', label: 'Meri Invoices', icon: <ClipboardList className="w-4 h-4" /> },
     { id: 'customers', label: 'Customer Add', icon: <Users className="w-4 h-4" /> },
     { id: 'products', label: 'Product Add', icon: <Package className="w-4 h-4" /> },
     ...(showStock ? [{ id: 'stock' as Tab, label: 'Stock', icon: <Package className="w-4 h-4" /> }] : []),
@@ -94,6 +96,7 @@ export default function EmployeeDashboard() {
           </div>
         )}
         {activeTab === 'invoice' && <ChatbotInvoice />}
+        {activeTab === 'invoices' && <InvoiceList allowEmployeeEdit filterEmployeeId={currentUser.id} />}
         {activeTab === 'customers' && <CustomerManager />}
         {activeTab === 'products' && <ProductManager />}
         {activeTab === 'stock' && <ProductManager stockOnly />}
