@@ -120,6 +120,30 @@ export default function CustomerManager({ readOnly, filterUserId }: Props) {
           </div>
         </div>
       )}
+
+      <BulkImportDialog
+        open={showBulk}
+        onClose={() => setShowBulk(false)}
+        title="Bulk Customer Import"
+        columns={CUSTOMER_COLUMNS}
+        sampleData={CUSTOMER_SAMPLE}
+        templateFileName="CustomerTemplate"
+        onImport={(rows) => {
+          const newCustomers = rows.map((r, i) => ({
+            id: 'c_bulk_' + Date.now() + '_' + i,
+            userId,
+            name: r.name,
+            phone: r.phone || '',
+            gstNumber: r.gstNumber || '',
+            address: r.address || '',
+            city: r.city || '',
+            state: r.state || '',
+            pincode: r.pincode || '',
+            createdAt: new Date().toISOString().split('T')[0],
+          }));
+          setCustomers(prev => [...prev, ...newCustomers]);
+        }}
+      />
     </div>
   );
 }

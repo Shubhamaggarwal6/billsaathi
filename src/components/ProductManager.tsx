@@ -136,6 +136,29 @@ export default function ProductManager({ stockOnly }: Props) {
           </div>
         </div>
       )}
+
+      <BulkImportDialog
+        open={showBulk}
+        onClose={() => setShowBulk(false)}
+        title="Bulk Product Import"
+        columns={PRODUCT_COLUMNS}
+        sampleData={PRODUCT_SAMPLE}
+        templateFileName="ProductTemplate"
+        onImport={(rows) => {
+          const newProducts = rows.map((r, i) => ({
+            id: 'p_bulk_' + Date.now() + '_' + i,
+            userId,
+            name: r.name,
+            hsn: r.hsn || '',
+            price: Number(r.price) || 0,
+            gstPercent: Number(r.gstPercent) || 18,
+            unit: r.unit || 'Piece',
+            stock: Number(r.stock) || 0,
+            lowStockThreshold: Number(r.lowStockThreshold) || 5,
+          }));
+          setProducts(prev => [...prev, ...newProducts]);
+        }}
+      />
     </div>
   );
 }
