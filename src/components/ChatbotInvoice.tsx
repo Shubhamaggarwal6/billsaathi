@@ -256,7 +256,7 @@ export default function ChatbotInvoice() {
     if (w) { w.document.write(printContent); w.document.close(); w.print(); }
   };
 
-  const { users: allUsers } = useApp();
+  
 
   return (
     <div className="animate-fade-in h-full flex flex-col">
