@@ -10,12 +10,13 @@ import ReportsPanel from '@/components/ReportsPanel';
 import EmployeeManager from '@/components/EmployeeManager';
 import SettingsPanel from '@/components/SettingsPanel';
 import InvoiceList from '@/components/InvoiceList';
+import PurchaseRegister from '@/components/PurchaseRegister';
 import {
   LayoutDashboard, MessageSquare, Users, Package, BarChart3,
-  UserPlus, Settings, LogOut, FileText, AlertTriangle, ClipboardList
+  UserPlus, Settings, LogOut, FileText, AlertTriangle, ClipboardList, ShoppingCart
 } from 'lucide-react';
 
-type Tab = 'dashboard' | 'chatbot' | 'invoices' | 'customers' | 'products' | 'reports' | 'employees' | 'settings';
+type Tab = 'dashboard' | 'chatbot' | 'invoices' | 'customers' | 'products' | 'reports' | 'employees' | 'settings' | 'purchases';
 
 export default function UserDashboard() {
   const { currentUser, users, invoices, products, customers, setCurrentUser } = useApp();
