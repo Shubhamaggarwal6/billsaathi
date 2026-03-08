@@ -165,15 +165,15 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
     const inv = viewInvoice;
     const invPayments = invoicePayments(inv.id);
     return (
-      <div className="space-y-4 animate-fade-in">
+      <div className="space-y-3 md:space-y-4 animate-fade-in">
         {readOnly && (
-          <div className="bg-warning/10 border border-warning/20 rounded-lg px-4 py-2 flex items-center gap-2 text-sm">
+          <div className="bg-warning/10 border border-warning/20 rounded-lg px-3 md:px-4 py-2 flex items-center gap-2 text-xs md:text-sm">
             <Eye className="w-4 h-4 text-warning" />
-            <span className="text-warning font-medium">👁️ Admin View — Sirf dekhne ka mode</span>
+            <span className="text-warning font-medium">👁️ Admin View</span>
           </div>
         )}
-        <Button variant="ghost" size="sm" onClick={() => setViewInvoice(null)}>← Wapas</Button>
-        <div className="glass-card p-6">
+        <Button variant="ghost" size="sm" onClick={() => setViewInvoice(null)} className="text-xs md:text-sm">← Wapas</Button>
+        <div className="glass-card p-4 md:p-6">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <div>
               <h3 className="text-lg font-bold text-foreground">Invoice: {inv.invoiceNumber}</h3>
@@ -252,7 +252,7 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
             </div>
           )}
 
-          <div className="mt-4 flex gap-2 flex-wrap">
+          <div className="mt-4 flex gap-2 flex-wrap text-xs md:text-sm">
             <Button size="sm" variant="outline" onClick={() => {
               const firm = users.find(u => u.id === inv.userId);
               printGSTInvoice(inv, firm);
@@ -465,35 +465,35 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
   }
 
   return (
-    <div className="animate-fade-in space-y-4">
-      <h2 className="text-xl font-bold text-foreground">📋 Invoices</h2>
+    <div className="animate-fade-in space-y-3 md:space-y-4">
+      <h2 className="text-lg md:text-xl font-bold text-foreground">📋 Invoices</h2>
 
       {readOnly && (
-        <div className="bg-warning/10 border border-warning/20 rounded-lg px-4 py-2 flex items-center gap-2 text-sm">
-          <Eye className="w-4 h-4 text-warning" />
+        <div className="bg-warning/10 border border-warning/20 rounded-lg px-3 md:px-4 py-2 flex items-center gap-2 text-xs md:text-sm">
+          <Eye className="w-4 h-4 text-warning shrink-0" />
           <span className="text-warning font-medium">👁️ Admin View — Sirf dekhne ka mode</span>
         </div>
       )}
 
       {/* Filters */}
-      <div className="glass-card p-4 space-y-3">
+      <div className="glass-card p-3 md:p-4 space-y-2 md:space-y-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Invoice no ya customer naam search..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+          <Input placeholder="Invoice no ya customer search..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 text-sm" />
         </div>
-        <div className="flex gap-3 items-end flex-wrap">
-          <div>
-            <label className="text-xs text-muted-foreground">From</label>
+        <div className="flex gap-2 md:gap-3 items-end flex-wrap">
+          <div className="flex-1 min-w-[100px]">
+            <label className="text-[10px] md:text-xs text-muted-foreground">From</label>
             <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-8 text-xs" />
           </div>
-          <div>
-            <label className="text-xs text-muted-foreground">To</label>
+          <div className="flex-1 min-w-[100px]">
+            <label className="text-[10px] md:text-xs text-muted-foreground">To</label>
             <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-8 text-xs" />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger className="w-24 md:w-32 h-8 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="all">All</SelectItem>
               <SelectItem value="paid">Paid</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
               <SelectItem value="partial">Partial</SelectItem>
@@ -501,7 +501,7 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
           </Select>
           {!filterEmployeeId && (
             <Select value={creatorFilter} onValueChange={setCreatorFilter}>
-              <SelectTrigger className="w-40 h-8 text-xs"><SelectValue placeholder="Banaya Kisne" /></SelectTrigger>
+              <SelectTrigger className="w-28 md:w-40 h-8 text-xs"><SelectValue placeholder="Kisne" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Sabhi</SelectItem>
                 {owner && <SelectItem value={owner.id}>👑 {owner.firmName}</SelectItem>}
@@ -519,7 +519,7 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
             { label: 'Is Mahine', value: 'is-mahine' }, { label: 'Pichhle Mahine', value: 'pichhle-mahine' },
             { label: 'Is Saal', value: 'is-saal' }, { label: 'Sab', value: 'sab' },
           ].map(r => (
-            <Button key={r.value} size="sm" variant="ghost" className="text-xs h-7" onClick={() => setQuickRange(r.value)}>{r.label}</Button>
+            <Button key={r.value} size="sm" variant="ghost" className="text-[10px] md:text-xs h-6 md:h-7 px-2" onClick={() => setQuickRange(r.value)}>{r.label}</Button>
           ))}
         </div>
       </div>
@@ -533,7 +533,7 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
               <Button size="sm" variant="outline" className="text-xs h-7 bg-green-500/10 text-green-600 border-green-500/20" onClick={() => {
                 const sel = filtered.filter(i => selectedIds.has(i.id));
                 downloadBulkInvoiceExcel(sel, dateFrom && dateTo ? `${dateFrom}_to_${dateTo}` : undefined);
-              }}><FileSpreadsheet className="w-3 h-3 mr-1" /> Export Excel</Button>
+              }}><FileSpreadsheet className="w-3 h-3 mr-1" /> Export</Button>
             </>
           )}
           <Button size="sm" variant="outline" className="text-xs h-7 bg-green-500/10 text-green-600 border-green-500/20" onClick={() => downloadBulkInvoiceExcel(filtered)}>
@@ -542,8 +542,33 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
         </div>
       </div>
 
-      {/* Invoice Table */}
-      <div className="glass-card overflow-hidden">
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-2">
+        {filtered.map((inv) => (
+          <div key={inv.id} className="glass-card p-3 cursor-pointer active:bg-muted/50" onClick={() => setViewInvoice(inv)}>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-foreground truncate">{inv.invoiceNumber}</p>
+                <p className="text-xs text-muted-foreground truncate">{inv.customerName}</p>
+                <p className="text-[10px] text-muted-foreground">{formatDate(inv.date)}</p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-sm font-bold text-foreground">₹{inv.grandTotal.toLocaleString('en-IN')}</p>
+                <span className={`text-[10px] ${inv.status === 'paid' ? 'badge-success' : inv.status === 'partial' ? 'badge-warning' : 'badge-critical'}`}>
+                  {inv.status === 'paid' ? '🟢 Paid' : inv.status === 'partial' ? '🟡 Partial' : '🔴 Pending'}
+                </span>
+              </div>
+            </div>
+            {inv.grandTotal - (inv.paidAmount || 0) > 0 && inv.status !== 'paid' && (
+              <p className="text-[10px] text-destructive mt-1">Baaki: ₹{(inv.grandTotal - (inv.paidAmount || 0)).toLocaleString('en-IN')}</p>
+            )}
+          </div>
+        ))}
+        {filtered.length === 0 && <p className="text-center text-sm text-muted-foreground py-8">Koi invoice nahi mila</p>}
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="glass-card overflow-hidden hidden md:block">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="border-b text-muted-foreground bg-muted/30">
@@ -611,8 +636,8 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
       </div>
 
       {/* Summary Row */}
-      <div className="glass-card p-4 flex flex-wrap gap-6 text-sm">
-        <span className="text-muted-foreground">Total: <span className="font-bold text-foreground">{filtered.length} invoices</span></span>
+      <div className="glass-card p-3 md:p-4 flex flex-wrap gap-3 md:gap-6 text-xs md:text-sm">
+        <span className="text-muted-foreground">Total: <span className="font-bold text-foreground">{filtered.length}</span></span>
         <span className="text-muted-foreground">Amount: <span className="font-bold text-foreground">₹{totalAmount.toLocaleString('en-IN')}</span></span>
         <span className="text-muted-foreground">Paid: <span className="font-bold text-success">₹{paidAmount.toLocaleString('en-IN')}</span></span>
         <span className="text-muted-foreground">Pending: <span className="font-bold text-critical">₹{pendingAmount.toLocaleString('en-IN')}</span></span>

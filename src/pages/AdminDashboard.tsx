@@ -17,7 +17,6 @@ export default function AdminDashboard() {
   const [renewDuration, setRenewDuration] = useState<SubscriptionDuration>('1month');
   const [renewCustomDate, setRenewCustomDate] = useState('');
 
-  // New user form
   const [newUser, setNewUser] = useState({
     username: '', password: '', firmName: '', gstNumber: '', email: '', phone: '',
     plan: 'Basic' as PlanType, maxEmployees: 2,
@@ -26,10 +25,7 @@ export default function AdminDashboard() {
 
   const businessUsers = users.filter(u => u.role === 'user');
   const activeUsers = businessUsers.filter(u => u.active && getSubscriptionStatus(u.subscriptionEnd).status !== 'expired');
-  const expiringUsers = businessUsers.filter(u => {
-    const s = getSubscriptionStatus(u.subscriptionEnd);
-    return s.status === 'critical';
-  });
+  const expiringUsers = businessUsers.filter(u => getSubscriptionStatus(u.subscriptionEnd).status === 'critical');
   const expiredUsers = businessUsers.filter(u => getSubscriptionStatus(u.subscriptionEnd).status === 'expired');
   const totalRevenue = invoices.reduce((s, i) => s + i.grandTotal, 0);
 
@@ -51,10 +47,8 @@ export default function AdminDashboard() {
     setUsers(prev => prev.map(u => {
       if (u.id !== userId) return u;
       const newEnd = renewDuration === 'custom' ? renewCustomDate : addDuration(u.subscriptionEnd, renewDuration);
-      // Also update employees
       return { ...u, subscriptionEnd: newEnd };
     }));
-    // Update employee subscriptions too
     setUsers(prev => prev.map(u => {
       if (u.parentUserId !== userId) return u;
       const parent = prev.find(p => p.id === userId);
@@ -70,66 +64,66 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-card border-b px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center">
-            <FileText className="w-5 h-5 text-primary-foreground" />
+      <header className="bg-card border-b px-4 md:px-6 py-3 md:py-4 flex items-center justify-between sticky top-0 z-30">
+        <div className="flex items-center gap-2 md:gap-3 min-w-0">
+          <div className="w-8 h-8 md:w-9 md:h-9 rounded-lg bg-primary flex items-center justify-center shrink-0">
+            <FileText className="w-4 h-4 md:w-5 md:h-5 text-primary-foreground" />
           </div>
-          <div>
-            <h1 className="text-lg font-bold text-foreground">BillSaathi Admin</h1>
-            <p className="text-xs text-muted-foreground">Super Admin Panel</p>
+          <div className="min-w-0">
+            <h1 className="text-sm md:text-lg font-bold text-foreground truncate">BillSaathi Admin</h1>
+            <p className="text-[10px] md:text-xs text-muted-foreground hidden sm:block">Super Admin Panel</p>
           </div>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => setCurrentUser(null)}>
-          <LogOut className="w-4 h-4 mr-2" /> Logout
+        <Button variant="ghost" size="sm" onClick={() => setCurrentUser(null)} className="text-xs md:text-sm">
+          <LogOut className="w-4 h-4 mr-1 md:mr-2" /> <span className="hidden sm:inline">Logout</span>
         </Button>
       </header>
 
-      <main className="p-6 max-w-7xl mx-auto space-y-6">
+      <main className="p-3 md:p-6 max-w-7xl mx-auto space-y-4 md:space-y-6">
         {viewUser ? (
           <AdminUserProfile user={viewUser} onBack={() => setViewUser(null)} />
         ) : (<>
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          <div className="stat-card">
-            <p className="text-xs text-muted-foreground">Total Users</p>
-            <p className="text-2xl font-bold text-foreground">{businessUsers.length}</p>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-4">
+          <div className="stat-card !p-3 md:!p-5">
+            <p className="text-[10px] md:text-xs text-muted-foreground">Total Users</p>
+            <p className="text-lg md:text-2xl font-bold text-foreground">{businessUsers.length}</p>
           </div>
-          <div className="stat-card">
-            <p className="text-xs text-muted-foreground">Active Users</p>
-            <p className="text-2xl font-bold text-success">{activeUsers.length}</p>
+          <div className="stat-card !p-3 md:!p-5">
+            <p className="text-[10px] md:text-xs text-muted-foreground">Active Users</p>
+            <p className="text-lg md:text-2xl font-bold text-success">{activeUsers.length}</p>
           </div>
-          <div className="stat-card">
-            <p className="text-xs text-muted-foreground">Expiring This Week</p>
-            <p className="text-2xl font-bold text-critical">{expiringUsers.length}</p>
+          <div className="stat-card !p-3 md:!p-5">
+            <p className="text-[10px] md:text-xs text-muted-foreground">Expiring Soon</p>
+            <p className="text-lg md:text-2xl font-bold text-critical">{expiringUsers.length}</p>
           </div>
-          <div className="stat-card">
-            <p className="text-xs text-muted-foreground">Expired</p>
-            <p className="text-2xl font-bold text-expired">{expiredUsers.length}</p>
+          <div className="stat-card !p-3 md:!p-5">
+            <p className="text-[10px] md:text-xs text-muted-foreground">Expired</p>
+            <p className="text-lg md:text-2xl font-bold text-expired">{expiredUsers.length}</p>
           </div>
-          <div className="stat-card">
-            <p className="text-xs text-muted-foreground">Total Invoices</p>
-            <p className="text-2xl font-bold text-foreground">{invoices.length}</p>
+          <div className="stat-card !p-3 md:!p-5">
+            <p className="text-[10px] md:text-xs text-muted-foreground">Invoices</p>
+            <p className="text-lg md:text-2xl font-bold text-foreground">{invoices.length}</p>
           </div>
-          <div className="stat-card">
-            <p className="text-xs text-muted-foreground">Total Revenue</p>
-            <p className="text-2xl font-bold text-foreground">₹{totalRevenue.toLocaleString('en-IN')}</p>
+          <div className="stat-card !p-3 md:!p-5">
+            <p className="text-[10px] md:text-xs text-muted-foreground">Revenue</p>
+            <p className="text-lg md:text-2xl font-bold text-foreground">₹{totalRevenue.toLocaleString('en-IN')}</p>
           </div>
         </div>
 
         {/* Expiry Alerts */}
         {(expiringUsers.length > 0 || expiredUsers.length > 0) && (
-          <div className="glass-card p-5">
-            <h2 className="text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-warning" /> Expiry Alerts
+          <div className="glass-card p-4 md:p-5">
+            <h2 className="text-base md:text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 md:w-5 md:h-5 text-warning" /> Expiry Alerts
             </h2>
             <div className="grid md:grid-cols-2 gap-4">
               {expiringUsers.length > 0 && (
                 <div>
-                  <p className="text-sm font-medium text-critical mb-2">🔴 7 din mein expire hone wale:</p>
+                  <p className="text-sm font-medium text-critical mb-2">🔴 7 din mein expire:</p>
                   {expiringUsers.map(u => (
-                    <div key={u.id} className="flex items-center justify-between py-1.5 text-sm">
-                      <span className="text-foreground">{u.firmName}</span>
+                    <div key={u.id} className="flex items-center justify-between py-1.5 text-sm gap-2">
+                      <span className="text-foreground truncate">{u.firmName}</span>
                       <SubscriptionBadge endDate={u.subscriptionEnd} compact />
                     </div>
                   ))}
@@ -137,10 +131,10 @@ export default function AdminDashboard() {
               )}
               {expiredUsers.length > 0 && (
                 <div>
-                  <p className="text-sm font-medium text-expired mb-2">⛔ Expired Users:</p>
+                  <p className="text-sm font-medium text-expired mb-2">⛔ Expired:</p>
                   {expiredUsers.map(u => (
-                    <div key={u.id} className="flex items-center justify-between py-1.5 text-sm">
-                      <span className="text-foreground">{u.firmName}</span>
+                    <div key={u.id} className="flex items-center justify-between py-1.5 text-sm gap-2">
+                      <span className="text-foreground truncate">{u.firmName}</span>
                       <SubscriptionBadge endDate={u.subscriptionEnd} compact />
                     </div>
                   ))}
@@ -151,24 +145,24 @@ export default function AdminDashboard() {
         )}
 
         {/* Users Table */}
-        <div className="glass-card p-5">
+        <div className="glass-card p-4 md:p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-              <Users className="w-5 h-5" /> Sabhi Users
+            <h2 className="text-base md:text-lg font-semibold text-foreground flex items-center gap-2">
+              <Users className="w-4 h-4 md:w-5 md:h-5" /> Sabhi Users
             </h2>
             <Button size="sm" onClick={() => setShowCreateUser(true)}>
-              <Plus className="w-4 h-4 mr-1" /> Naya User
+              <Plus className="w-4 h-4 mr-1" /> <span className="hidden sm:inline">Naya User</span>
             </Button>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto -mx-4 md:mx-0">
+            <table className="w-full text-xs md:text-sm min-w-[640px]">
               <thead>
                 <tr className="border-b text-muted-foreground">
                   <th className="text-left py-2 px-2">Firm Name</th>
                   <th className="text-left py-2 px-2">Username</th>
                   <th className="text-left py-2 px-2">Plan</th>
-                  <th className="text-left py-2 px-2">Employees</th>
+                  <th className="text-left py-2 px-2">Emp</th>
                   <th className="text-left py-2 px-2">Start → End</th>
                   <th className="text-left py-2 px-2">Status</th>
                   <th className="text-left py-2 px-2">Actions</th>
@@ -177,22 +171,22 @@ export default function AdminDashboard() {
               <tbody>
                 {businessUsers.map(u => (
                   <tr key={u.id} className="border-b hover:bg-muted/50 transition-colors">
-                    <td className="py-2.5 px-2 font-medium text-foreground">{u.firmName}</td>
-                    <td className="py-2.5 px-2 text-muted-foreground">{u.username}</td>
-                    <td className="py-2.5 px-2"><span className="text-xs bg-secondary text-secondary-foreground px-2 py-0.5 rounded-full">{u.plan}</span></td>
-                    <td className="py-2.5 px-2 text-muted-foreground">{users.filter(e => e.parentUserId === u.id).length}/{u.maxEmployees}</td>
-                    <td className="py-2.5 px-2 text-xs text-muted-foreground">{formatDate(u.subscriptionStart)} → {formatDate(u.subscriptionEnd)}</td>
-                    <td className="py-2.5 px-2"><SubscriptionBadge endDate={u.subscriptionEnd} compact /></td>
-                    <td className="py-2.5 px-2">
+                    <td className="py-2 px-2 font-medium text-foreground">{u.firmName}</td>
+                    <td className="py-2 px-2 text-muted-foreground">{u.username}</td>
+                    <td className="py-2 px-2"><span className="text-xs bg-secondary text-secondary-foreground px-2 py-0.5 rounded-full">{u.plan}</span></td>
+                    <td className="py-2 px-2 text-muted-foreground">{users.filter(e => e.parentUserId === u.id).length}/{u.maxEmployees}</td>
+                    <td className="py-2 px-2 text-xs text-muted-foreground whitespace-nowrap">{formatDate(u.subscriptionStart)} → {formatDate(u.subscriptionEnd)}</td>
+                    <td className="py-2 px-2"><SubscriptionBadge endDate={u.subscriptionEnd} compact /></td>
+                    <td className="py-2 px-2">
                       <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => setViewUser(u)} className="text-xs h-7">
-                          <Eye className="w-3 h-3 mr-1" /> View
+                        <Button size="sm" variant="ghost" onClick={() => setViewUser(u)} className="text-xs h-7 px-2">
+                          <Eye className="w-3 h-3" />
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => toggleActive(u.id)} className="text-xs h-7">
+                        <Button size="sm" variant="ghost" onClick={() => toggleActive(u.id)} className="text-xs h-7 px-2">
                           {u.active ? '🟢' : '🔴'}
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => setShowRenew(u.id)} className="text-xs h-7">
-                          <RefreshCw className="w-3 h-3 mr-1" /> Renew
+                        <Button size="sm" variant="outline" onClick={() => setShowRenew(u.id)} className="text-xs h-7 px-2">
+                          <RefreshCw className="w-3 h-3" />
                         </Button>
                       </div>
                     </td>
@@ -205,16 +199,16 @@ export default function AdminDashboard() {
 
         {/* Create User Modal */}
         {showCreateUser && (
-          <div className="fixed inset-0 bg-foreground/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="glass-card w-full max-w-lg p-6 animate-fade-in max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 bg-foreground/30 backdrop-blur-sm z-50 flex items-center justify-center p-3 md:p-4">
+            <div className="glass-card w-full max-w-lg p-4 md:p-6 animate-fade-in max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-foreground">Naya User Banayein</h2>
+                <h2 className="text-base md:text-lg font-semibold text-foreground">Naya User Banayein</h2>
                 <Button variant="ghost" size="sm" onClick={() => setShowCreateUser(false)}><X className="w-4 h-4" /></Button>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Input placeholder="Username" value={newUser.username} onChange={e => setNewUser({ ...newUser, username: e.target.value })} />
                 <Input placeholder="Password" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} />
-                <Input placeholder="Firm Name" value={newUser.firmName} onChange={e => setNewUser({ ...newUser, firmName: e.target.value })} className="col-span-2" />
+                <Input placeholder="Firm Name" value={newUser.firmName} onChange={e => setNewUser({ ...newUser, firmName: e.target.value })} className="sm:col-span-2" />
                 <Input placeholder="GST Number" value={newUser.gstNumber} onChange={e => setNewUser({ ...newUser, gstNumber: e.target.value })} />
                 <Input placeholder="Email" value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} />
                 <Input placeholder="Phone" value={newUser.phone} onChange={e => setNewUser({ ...newUser, phone: e.target.value })} />
@@ -256,10 +250,10 @@ export default function AdminDashboard() {
 
         {/* Renew Modal */}
         {showRenew && (
-          <div className="fixed inset-0 bg-foreground/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="glass-card w-full max-w-sm p-6 animate-fade-in">
+          <div className="fixed inset-0 bg-foreground/30 backdrop-blur-sm z-50 flex items-center justify-center p-3 md:p-4">
+            <div className="glass-card w-full max-w-sm p-4 md:p-6 animate-fade-in">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-foreground">Subscription Renew</h2>
+                <h2 className="text-base md:text-lg font-semibold text-foreground">Subscription Renew</h2>
                 <Button variant="ghost" size="sm" onClick={() => setShowRenew(null)}><X className="w-4 h-4" /></Button>
               </div>
               {(() => {
