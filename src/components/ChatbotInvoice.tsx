@@ -627,6 +627,7 @@ export default function ChatbotInvoice() {
       case 'new-product-price': return 'MRP / Price ₹...';
       case 'new-product-gst': return 'GST % (default 18)';
       case 'new-product-unit': return 'Unit (Piece/Kg/Box...)';
+      case 'payment-amount': return `Amount likhein (Full: ₹${lastInvoiceGrandTotal.toLocaleString('en-IN')})`;
       default: return 'Type karein...';
     }
   };
