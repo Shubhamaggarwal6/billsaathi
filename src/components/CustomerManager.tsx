@@ -54,7 +54,12 @@ export default function CustomerManager({ readOnly, filterUserId }: Props) {
     <div className="animate-fade-in space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-foreground">Customers</h2>
-        {!readOnly && <Button size="sm" onClick={() => setShowAdd(true)}><Plus className="w-4 h-4 mr-1" /> Customer Add</Button>}
+        {!readOnly && (
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setShowBulk(true)}><Upload className="w-4 h-4 mr-1" /> Bulk Import</Button>
+            <Button size="sm" onClick={() => setShowAdd(true)}><Plus className="w-4 h-4 mr-1" /> Customer Add</Button>
+          </div>
+        )}
       </div>
 
       <div className="relative">
