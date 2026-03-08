@@ -567,7 +567,7 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
             </tr></thead>
             <tbody>
               {filtered.map((inv, idx) => (
-                <tr key={inv.id} className="border-b hover:bg-muted/30 transition-colors">
+                <tr key={inv.id} className="border-b hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => setViewInvoice(inv)}>
                   <td className="py-2.5 px-2">
                     <Checkbox checked={selectedIds.has(inv.id)} onCheckedChange={(checked) => {
                       setSelectedIds(prev => { const next = new Set(prev); if (checked) next.add(inv.id); else next.delete(inv.id); return next; });
