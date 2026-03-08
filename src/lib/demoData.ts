@@ -102,7 +102,7 @@ export const initialInvoices: Invoice[] = [
     ],
     totalAmount: 38000, totalGst: 10640, totalCgst: 5320, totalSgst: 5320, totalIgst: 0,
     grandTotal: 48640, roundOff: 0, isInterState: false, placeOfSupply: 'Maharashtra',
-    status: 'pending',
+    status: 'pending', paidAmount: 0,
     createdBy: { id: 'user1', name: 'Rajesh Traders', role: 'user', timestamp: new Date().toISOString() },
   },
   {
