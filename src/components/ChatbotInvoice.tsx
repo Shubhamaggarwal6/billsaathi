@@ -312,6 +312,33 @@ export default function ChatbotInvoice() {
         setStep('product-selling-price');
         break;
       }
+      case 'payment-amount': {
+        const amt = Number(text);
+        if (isNaN(amt) || amt <= 0) { addMsg('bot', 'Sahi amount daalein!'); return; }
+        const lastInv = invoices[invoices.length - 1];
+        if (!lastInv) break;
+        const payment = {
+          id: 'pay_' + Date.now(),
+          userId,
+          customerId: lastInv.customerId,
+          amount: amt,
+          date: new Date().toISOString().split('T')[0],
+          mode: paymentMode as any,
+          note: `Payment for ${lastInv.invoiceNumber}`,
+          timestamp: new Date().toISOString(),
+        };
+        setPayments(prev => [...prev, payment]);
+        // Update invoice status
+        if (amt >= lastInvoiceGrandTotal) {
+          setInvoices(prev => prev.map(i => i.id === lastInv.id ? { ...i, status: 'paid' } : i));
+          addMsg('bot', `✅ ₹${amt.toLocaleString('en-IN')} payment (${paymentMode}) record ho gayi! Invoice PAID ho gayi.`, ['🖨️ Print Karein', '📋 Nayi Invoice Banao', '🏠 Done']);
+        } else {
+          setInvoices(prev => prev.map(i => i.id === lastInv.id ? { ...i, status: 'partial' } : i));
+          addMsg('bot', `✅ ₹${amt.toLocaleString('en-IN')} partial payment (${paymentMode}) record ho gayi!\nBaaki: ₹${(lastInvoiceGrandTotal - amt).toLocaleString('en-IN')}`, ['🖨️ Print Karein', '📋 Nayi Invoice Banao', '🏠 Done']);
+        }
+        setStep('done');
+        break;
+      }
     }
   };
 
