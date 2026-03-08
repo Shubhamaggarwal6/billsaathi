@@ -363,8 +363,37 @@ export default function ChatbotInvoice() {
       handleConfirm(opt);
       return;
     }
-    if (step === 'done') {
-      if (opt === '📋 Nayi Invoice Banao') resetChat();
+    if (step === 'done' || step === 'payment-type' || step === 'payment-mode') {
+      if (opt === '📋 Nayi Invoice Banao') { resetChat(); return; }
+      if (opt === '🏠 Done') { resetChat(); return; }
+      if (opt === '🖨️ Print Karein') { printInvoice(); return; }
+      // Payment flow
+      if (opt === 'Puri Payment ✅') {
+        addMsg('bot', 'Payment ka mode kya hai?', ['💵 Cash', '📱 UPI', '🏦 Bank Transfer', '🏦 RTGS/NEFT', '📝 Cheque']);
+        setStep('payment-mode');
+        return;
+      }
+      if (opt === 'Partial Payment 💵') {
+        addMsg('bot', 'Payment ka mode kya hai?', ['💵 Cash', '📱 UPI', '🏦 Bank Transfer', '🏦 RTGS/NEFT', '📝 Cheque']);
+        setStep('payment-mode');
+        return;
+      }
+      if (opt === 'Credit / Baad mein 📝') {
+        addMsg('bot', `📝 Credit note ho gaya. Invoice pending rahegi.\nGrand Total: ₹${lastInvoiceGrandTotal.toLocaleString('en-IN')}`, ['🖨️ Print Karein', '📋 Nayi Invoice Banao', '🏠 Done']);
+        setStep('done');
+        return;
+      }
+      // Mode selected
+      if (['💵 Cash', '📱 UPI', '🏦 Bank Transfer', '🏦 RTGS/NEFT', '📝 Cheque'].includes(opt)) {
+        const modeMap: Record<string, string> = {
+          '💵 Cash': 'Cash', '📱 UPI': 'UPI', '🏦 Bank Transfer': 'Bank Transfer',
+          '🏦 RTGS/NEFT': 'Bank Transfer', '📝 Cheque': 'Cheque',
+        };
+        setPaymentMode(modeMap[opt] || 'Cash');
+        addMsg('bot', `Mode: ${opt}\nKitna amount receive hua? (Full amount: ₹${lastInvoiceGrandTotal.toLocaleString('en-IN')})`);
+        setStep('payment-amount');
+        return;
+      }
       return;
     }
     if (opt === 'Naya Customer') {
