@@ -28,6 +28,9 @@ type Step =
   | 'new-product-unit'
   | 'more-products'
   | 'preview'
+  | 'payment-type'
+  | 'payment-mode'
+  | 'payment-amount'
   | 'done';
 
 interface Message {
