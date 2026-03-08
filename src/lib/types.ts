@@ -154,6 +154,7 @@ export interface Invoice {
   isInterState: boolean;
   placeOfSupply: string;
   status: 'paid' | 'pending' | 'partial';
+  paidAmount: number;
   createdBy: InvoiceCreator;
 }
 
