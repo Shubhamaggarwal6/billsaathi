@@ -8,7 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { INDIAN_STATES, DEFAULT_FIRM_SETTINGS, FirmSettings } from '@/lib/types';
 
 export default function SettingsPanel() {
-  const { currentUser, setUsers } = useApp();
+  const { currentUser, users, customers, products, invoices, payments, purchases, setUsers } = useApp();
+  const [backupProgress, setBackupProgress] = useState<string | null>(null);
   const [oldPw, setOldPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
