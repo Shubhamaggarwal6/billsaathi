@@ -586,7 +586,14 @@ export default function ReportsPanel() {
       {reportTab === 'outstanding' && (
         <div className="space-y-4">
           <div className="glass-card p-5">
-            <h3 className="text-sm font-semibold text-foreground mb-3">💰 Outstanding / Debtors Report (CA ke liye)</h3>
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-sm font-semibold text-foreground">💰 Outstanding / Debtors Report</h3>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" className="text-xs" onClick={handleDownloadOutstanding}><FileSpreadsheet className="w-3 h-3 mr-1" /> Excel</Button>
+                <Button size="sm" variant="outline" className="text-xs" onClick={handleDownloadStock}><FileSpreadsheet className="w-3 h-3 mr-1" /> Stock</Button>
+                <Button size="sm" variant="outline" className="text-xs" onClick={handleDownloadPurchases}><FileSpreadsheet className="w-3 h-3 mr-1" /> Purchases</Button>
+              </div>
+            </div>
             <table className="w-full text-sm">
               <thead><tr className="border-b text-muted-foreground bg-muted/30">
                 <th className="text-left py-2 px-3">Customer</th>
