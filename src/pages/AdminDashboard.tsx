@@ -4,8 +4,10 @@ import { getSubscriptionStatus, formatDate, addDuration } from '@/lib/subscripti
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Users, FileText, AlertTriangle, TrendingUp, LogOut, Plus, RefreshCw, X } from 'lucide-react';
+import { Users, FileText, AlertTriangle, TrendingUp, LogOut, Plus, RefreshCw, X, Eye } from 'lucide-react';
 import SubscriptionBadge from '@/components/SubscriptionBadge';
+import AdminUserProfile from '@/components/AdminUserProfile';
+import type { PlanType, SubscriptionDuration, User } from '@/lib/types';
 import type { PlanType, SubscriptionDuration } from '@/lib/types';
 
 export default function AdminDashboard() {
