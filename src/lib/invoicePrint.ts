@@ -1,6 +1,6 @@
 import { useApp } from '@/contexts/AppContext';
 import { numberToWords } from '@/lib/subscription';
-import type { Invoice, User, FirmSettings, DEFAULT_FIRM_SETTINGS } from '@/lib/types';
+import type { Invoice, User, FirmSettings } from '@/lib/types';
 
 const COPY_LABELS: Record<string, string> = {
   original: 'Original for Recipient',
