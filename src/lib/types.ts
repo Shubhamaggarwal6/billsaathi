@@ -2,6 +2,69 @@ export type Role = 'admin' | 'user' | 'employee';
 export type PlanType = 'Basic' | 'Pro' | 'Enterprise';
 export type SubscriptionDuration = '1month' | '3months' | '6months' | '1year' | 'custom';
 
+export const INDIAN_STATES: { code: string; name: string }[] = [
+  { code: '01', name: 'Jammu & Kashmir' }, { code: '02', name: 'Himachal Pradesh' },
+  { code: '03', name: 'Punjab' }, { code: '04', name: 'Chandigarh' },
+  { code: '05', name: 'Uttarakhand' }, { code: '06', name: 'Haryana' },
+  { code: '07', name: 'Delhi' }, { code: '08', name: 'Rajasthan' },
+  { code: '09', name: 'Uttar Pradesh' }, { code: '10', name: 'Bihar' },
+  { code: '11', name: 'Sikkim' }, { code: '12', name: 'Arunachal Pradesh' },
+  { code: '13', name: 'Nagaland' }, { code: '14', name: 'Manipur' },
+  { code: '15', name: 'Mizoram' }, { code: '16', name: 'Tripura' },
+  { code: '17', name: 'Meghalaya' }, { code: '18', name: 'Assam' },
+  { code: '19', name: 'West Bengal' }, { code: '20', name: 'Jharkhand' },
+  { code: '21', name: 'Odisha' }, { code: '22', name: 'Chhattisgarh' },
+  { code: '23', name: 'Madhya Pradesh' }, { code: '24', name: 'Gujarat' },
+  { code: '27', name: 'Maharashtra' }, { code: '29', name: 'Karnataka' },
+  { code: '30', name: 'Goa' }, { code: '32', name: 'Kerala' },
+  { code: '33', name: 'Tamil Nadu' }, { code: '36', name: 'Telangana' },
+  { code: '37', name: 'Andhra Pradesh' },
+];
+
+export function getStateFromGST(gst: string): { code: string; name: string } | null {
+  if (!gst || gst.length < 2) return null;
+  const code = gst.substring(0, 2);
+  return INDIAN_STATES.find(s => s.code === code) || null;
+}
+
+export interface FirmSettings {
+  address: string;
+  city: string;
+  state: string;
+  stateCode: string;
+  pincode: string;
+  bankName: string;
+  accountNumber: string;
+  ifscCode: string;
+  branchName: string;
+  invoicePrefix: string;
+  financialYearStart: number; // month 4 = April
+  termsAndConditions: string;
+  showBankDetails: boolean;
+  showTerms: boolean;
+  showEwayBill: boolean;
+  invoiceCopyLabel: 'original' | 'duplicate' | 'triplicate' | 'all';
+}
+
+export const DEFAULT_FIRM_SETTINGS: FirmSettings = {
+  address: '',
+  city: '',
+  state: 'Maharashtra',
+  stateCode: '27',
+  pincode: '',
+  bankName: '',
+  accountNumber: '',
+  ifscCode: '',
+  branchName: '',
+  invoicePrefix: 'INV',
+  financialYearStart: 4,
+  termsAndConditions: '1. Goods once sold will not be taken back.\n2. Subject to local jurisdiction.\n3. E&OE (Errors and Omissions Excepted)',
+  showBankDetails: true,
+  showTerms: true,
+  showEwayBill: false,
+  invoiceCopyLabel: 'original',
+};
+
 export interface User {
   id: string;
   username: string;
@@ -18,6 +81,7 @@ export interface User {
   active: boolean;
   parentUserId?: string;
   showStockToEmployees: boolean;
+  firmSettings?: FirmSettings;
 }
 
 export interface Customer {
@@ -27,6 +91,10 @@ export interface Customer {
   phone: string;
   gstNumber: string;
   address: string;
+  city?: string;
+  state?: string;
+  stateCode?: string;
+  pincode?: string;
   createdAt?: string;
 }
 
@@ -49,8 +117,8 @@ export interface InvoiceItem {
   quantity: number;
   mrp: number;
   sellingPrice: number;
-  price: number; // final price after discount
-  discount: number; // discount percentage
+  price: number;
+  discount: number;
   gstPercent: number;
   unit: string;
 }
@@ -71,11 +139,20 @@ export interface Invoice {
   customerName: string;
   customerGst: string;
   customerAddress: string;
+  customerState?: string;
+  customerStateCode?: string;
   vehicleNumber: string;
+  ewayBillNumber?: string;
   items: InvoiceItem[];
   totalAmount: number;
   totalGst: number;
+  totalCgst: number;
+  totalSgst: number;
+  totalIgst: number;
   grandTotal: number;
+  roundOff: number;
+  isInterState: boolean;
+  placeOfSupply: string;
   status: 'paid' | 'pending' | 'partial';
   createdBy: InvoiceCreator;
 }
@@ -88,6 +165,21 @@ export interface Payment {
   date: string;
   mode: 'Cash' | 'UPI' | 'Bank Transfer' | 'Cheque';
   note: string;
+  timestamp: string;
+}
+
+export interface PurchaseEntry {
+  id: string;
+  userId: string;
+  supplierName: string;
+  supplierGstin: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  taxableAmount: number;
+  igst: number;
+  cgst: number;
+  sgst: number;
+  description: string;
   timestamp: string;
 }
 
