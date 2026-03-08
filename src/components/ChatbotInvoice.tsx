@@ -28,9 +28,6 @@ type Step =
   | 'new-product-unit'
   | 'more-products'
   | 'preview'
-  | 'payment-type'
-  | 'payment-mode'
-  | 'payment-amount'
   | 'done';
 
 interface Message {
@@ -40,7 +37,7 @@ interface Message {
 }
 
 export default function ChatbotInvoice() {
-  const { currentUser, users, customers, products, invoices, payments, setCustomers, setProducts, setInvoices, setPayments } = useApp();
+  const { currentUser, users, customers, products, invoices, setCustomers, setProducts, setInvoices } = useApp();
   const [messages, setMessages] = useState<Message[]>([
     { from: 'bot', text: '🙏 Namaskar! Naya invoice banayein?\nCustomer naya hai ya purana?', options: ['Purana Customer', 'Naya Customer'] }
   ]);
@@ -60,9 +57,6 @@ export default function ChatbotInvoice() {
   // Edit state
   const [editTarget, setEditTarget] = useState<string | null>(null);
   const [returnStep, setReturnStep] = useState<Step | null>(null);
-  // Payment state
-  const [paymentMode, setPaymentMode] = useState<string>('');
-  const [lastInvoiceGrandTotal, setLastInvoiceGrandTotal] = useState(0);
 
   const userId = currentUser?.role === 'employee' ? currentUser.parentUserId! : currentUser?.id!;
   const myCustomers = customers.filter(c => c.userId === userId);
@@ -142,7 +136,7 @@ export default function ChatbotInvoice() {
 
   const handleSend = () => {
     const text = input.trim();
-    const skippableSteps: Step[] = ['vehicle', 'new-customer-gst', 'new-customer-address', 'new-product-hsn', 'product-selling-price', 'product-discount', 'payment-amount'];
+    const skippableSteps: Step[] = ['vehicle', 'new-customer-gst', 'new-customer-address', 'new-product-hsn', 'product-selling-price', 'product-discount'];
     if (!text && !skippableSteps.includes(step)) return;
     setInput('');
     setSuggestions([]);
@@ -312,33 +306,6 @@ export default function ChatbotInvoice() {
         setStep('product-selling-price');
         break;
       }
-      case 'payment-amount': {
-        const amt = Number(text);
-        if (isNaN(amt) || amt <= 0) { addMsg('bot', 'Sahi amount daalein!'); return; }
-        const lastInv = invoices[invoices.length - 1];
-        if (!lastInv) break;
-        const payment = {
-          id: 'pay_' + Date.now(),
-          userId,
-          customerId: lastInv.customerId,
-          amount: amt,
-          date: new Date().toISOString().split('T')[0],
-          mode: paymentMode as any,
-          note: `Payment for ${lastInv.invoiceNumber}`,
-          timestamp: new Date().toISOString(),
-        };
-        setPayments(prev => [...prev, payment]);
-        // Update invoice status
-        if (amt >= lastInvoiceGrandTotal) {
-          setInvoices(prev => prev.map(i => i.id === lastInv.id ? { ...i, status: 'paid' } : i));
-          addMsg('bot', `✅ ₹${amt.toLocaleString('en-IN')} payment (${paymentMode}) record ho gayi! Invoice PAID ho gayi.`, ['🖨️ Print Karein', '📋 Nayi Invoice Banao', '🏠 Done']);
-        } else {
-          setInvoices(prev => prev.map(i => i.id === lastInv.id ? { ...i, status: 'partial' } : i));
-          addMsg('bot', `✅ ₹${amt.toLocaleString('en-IN')} partial payment (${paymentMode}) record ho gayi!\nBaaki: ₹${(lastInvoiceGrandTotal - amt).toLocaleString('en-IN')}`, ['🖨️ Print Karein', '📋 Nayi Invoice Banao', '🏠 Done']);
-        }
-        setStep('done');
-        break;
-      }
     }
   };
 
@@ -363,37 +330,8 @@ export default function ChatbotInvoice() {
       handleConfirm(opt);
       return;
     }
-    if (step === 'done' || step === 'payment-type' || step === 'payment-mode') {
-      if (opt === '📋 Nayi Invoice Banao') { resetChat(); return; }
-      if (opt === '🏠 Done') { resetChat(); return; }
-      if (opt === '🖨️ Print Karein') { printInvoice(); return; }
-      // Payment flow
-      if (opt === 'Puri Payment ✅') {
-        addMsg('bot', 'Payment ka mode kya hai?', ['💵 Cash', '📱 UPI', '🏦 Bank Transfer', '🏦 RTGS/NEFT', '📝 Cheque']);
-        setStep('payment-mode');
-        return;
-      }
-      if (opt === 'Partial Payment 💵') {
-        addMsg('bot', 'Payment ka mode kya hai?', ['💵 Cash', '📱 UPI', '🏦 Bank Transfer', '🏦 RTGS/NEFT', '📝 Cheque']);
-        setStep('payment-mode');
-        return;
-      }
-      if (opt === 'Credit / Baad mein 📝') {
-        addMsg('bot', `📝 Credit note ho gaya. Invoice pending rahegi.\nGrand Total: ₹${lastInvoiceGrandTotal.toLocaleString('en-IN')}`, ['🖨️ Print Karein', '📋 Nayi Invoice Banao', '🏠 Done']);
-        setStep('done');
-        return;
-      }
-      // Mode selected
-      if (['💵 Cash', '📱 UPI', '🏦 Bank Transfer', '🏦 RTGS/NEFT', '📝 Cheque'].includes(opt)) {
-        const modeMap: Record<string, string> = {
-          '💵 Cash': 'Cash', '📱 UPI': 'UPI', '🏦 Bank Transfer': 'Bank Transfer',
-          '🏦 RTGS/NEFT': 'Bank Transfer', '📝 Cheque': 'Cheque',
-        };
-        setPaymentMode(modeMap[opt] || 'Cash');
-        addMsg('bot', `Mode: ${opt}\nKitna amount receive hua? (Full amount: ₹${lastInvoiceGrandTotal.toLocaleString('en-IN')})`);
-        setStep('payment-amount');
-        return;
-      }
+    if (step === 'done') {
+      if (opt === '📋 Nayi Invoice Banao') resetChat();
       return;
     }
     if (opt === 'Naya Customer') {
@@ -578,10 +516,9 @@ export default function ChatbotInvoice() {
         const item = items.find(i => i.productId === p.id);
         return item ? { ...p, stock: Math.max(0, p.stock - item.quantity) } : p;
       }));
-      setLastInvoiceGrandTotal(grandTotal);
-      addMsg('bot', `🎉 Invoice ban gayi! Invoice no: ${invNum}\nGrand Total: ₹${grandTotal.toLocaleString('en-IN')}\n\n💰 Payment leni hai?`, ['Puri Payment ✅', 'Partial Payment 💵', 'Credit / Baad mein 📝', '🖨️ Print Karein']);
+      addMsg('bot', `🎉 Invoice ban gayi! Invoice no: ${invNum}\nGrand Total: ₹${(totalAmount + totalGst).toLocaleString('en-IN')}`, ['🖨️ Print Karein', '📋 Nayi Invoice Banao']);
       setShowInvoice(true);
-      setStep('payment-type');
+      setStep('done');
     } else {
       handleOptionClick(opt);
     }
@@ -627,7 +564,6 @@ export default function ChatbotInvoice() {
       case 'new-product-price': return 'MRP / Price ₹...';
       case 'new-product-gst': return 'GST % (default 18)';
       case 'new-product-unit': return 'Unit (Piece/Kg/Box...)';
-      case 'payment-amount': return `Amount likhein (Full: ₹${lastInvoiceGrandTotal.toLocaleString('en-IN')})`;
       default: return 'Type karein...';
     }
   };
@@ -759,7 +695,7 @@ export default function ChatbotInvoice() {
         )}
 
         {/* Input */}
-        {step !== 'done' && step !== 'start' && step !== 'confirm-customer' && step !== 'more-products' && step !== 'preview' && step !== 'payment-type' && step !== 'payment-mode' && (
+        {step !== 'done' && step !== 'start' && step !== 'confirm-customer' && step !== 'more-products' && step !== 'preview' && (
           <div className="border-t p-3 flex gap-2">
             <Input
               ref={inputRef}
