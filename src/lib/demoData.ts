@@ -68,8 +68,8 @@ export const initialInvoices: Invoice[] = [
     customerId: 'c1', customerName: 'Amit Kumar', customerGst: '27AAACM5346P1ZH',
     customerAddress: 'Shop 12, MG Road, Pune', vehicleNumber: 'MH12AB1234',
     items: [
-      { productId: 'p1', productName: 'Tata Steel Rod 12mm', hsn: '7214', quantity: 5, price: 4500, gstPercent: 18, unit: 'Quintal' },
-      { productId: 'p2', productName: 'ACC Cement 50kg', hsn: '2523', quantity: 50, price: 380, gstPercent: 28, unit: 'Bag' },
+      { productId: 'p1', productName: 'Tata Steel Rod 12mm', hsn: '7214', quantity: 5, mrp: 4500, sellingPrice: 4500, price: 4500, discount: 0, gstPercent: 18, unit: 'Quintal' },
+      { productId: 'p2', productName: 'ACC Cement 50kg', hsn: '2523', quantity: 50, mrp: 400, sellingPrice: 380, price: 380, discount: 5, gstPercent: 28, unit: 'Bag' },
     ],
     totalAmount: 41500, totalGst: 9370, grandTotal: 50870, status: 'paid',
     createdBy: { id: 'user1', name: 'Rajesh Traders', role: 'user', timestamp: daysAgoISO(2) },
@@ -79,7 +79,7 @@ export const initialInvoices: Invoice[] = [
     customerId: 'c2', customerName: 'Priya Sharma', customerGst: '',
     customerAddress: '45 Station Road, Mumbai', vehicleNumber: '',
     items: [
-      { productId: 'p2', productName: 'ACC Cement 50kg', hsn: '2523', quantity: 100, price: 380, gstPercent: 28, unit: 'Bag' },
+      { productId: 'p2', productName: 'ACC Cement 50kg', hsn: '2523', quantity: 100, mrp: 400, sellingPrice: 380, price: 380, discount: 5, gstPercent: 28, unit: 'Bag' },
     ],
     totalAmount: 38000, totalGst: 10640, grandTotal: 48640, status: 'pending',
     createdBy: { id: 'user1', name: 'Rajesh Traders', role: 'user', timestamp: new Date().toISOString() },
@@ -89,7 +89,7 @@ export const initialInvoices: Invoice[] = [
     customerId: 'c1', customerName: 'Amit Kumar', customerGst: '27AAACM5346P1ZH',
     customerAddress: 'Shop 12, MG Road, Pune', vehicleNumber: 'MH12CD5678',
     items: [
-      { productId: 'p3', productName: 'Birla TMT Bar 8mm', hsn: '7214', quantity: 3, price: 5200, gstPercent: 18, unit: 'Quintal' },
+      { productId: 'p3', productName: 'Birla TMT Bar 8mm', hsn: '7214', quantity: 3, mrp: 5500, sellingPrice: 5200, price: 5200, discount: 0, gstPercent: 18, unit: 'Quintal' },
     ],
     totalAmount: 15600, totalGst: 2808, grandTotal: 18408, status: 'partial',
     createdBy: { id: 'emp1', name: 'Mohan', role: 'employee', timestamp: daysAgoISO(5) },

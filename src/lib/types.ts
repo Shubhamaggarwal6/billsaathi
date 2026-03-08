@@ -47,7 +47,10 @@ export interface InvoiceItem {
   productName: string;
   hsn: string;
   quantity: number;
-  price: number;
+  mrp: number;
+  sellingPrice: number;
+  price: number; // final price after discount
+  discount: number; // discount percentage
   gstPercent: number;
   unit: string;
 }
