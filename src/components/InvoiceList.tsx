@@ -68,6 +68,19 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId, 
     setShowStatusModal(null);
   };
 
+  const handleDeleteInvoice = (inv: Invoice) => {
+    if (!confirm(`Kya aap "${inv.invoiceNumber}" invoice delete karna chahte hain?`)) return;
+    // Restore stock
+    setProducts(prev => prev.map(p => {
+      const item = inv.items.find(i => i.productId === p.id);
+      return item ? { ...p, stock: p.stock + item.quantity } : p;
+    }));
+    setInvoices(prev => prev.filter(i => i.id !== inv.id));
+    setViewInvoice(null);
+  };
+
+  const canEditDelete = allowEmployeeEdit || (!readOnly && currentUser?.role === 'user');
+
   const firm = owner || currentUser;
 
   // Invoice detail view
