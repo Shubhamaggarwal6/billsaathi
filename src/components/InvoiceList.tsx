@@ -165,15 +165,15 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
     const inv = viewInvoice;
     const invPayments = invoicePayments(inv.id);
     return (
-      <div className="space-y-4 animate-fade-in">
+      <div className="space-y-3 md:space-y-4 animate-fade-in">
         {readOnly && (
-          <div className="bg-warning/10 border border-warning/20 rounded-lg px-4 py-2 flex items-center gap-2 text-sm">
+          <div className="bg-warning/10 border border-warning/20 rounded-lg px-3 md:px-4 py-2 flex items-center gap-2 text-xs md:text-sm">
             <Eye className="w-4 h-4 text-warning" />
-            <span className="text-warning font-medium">👁️ Admin View — Sirf dekhne ka mode</span>
+            <span className="text-warning font-medium">👁️ Admin View</span>
           </div>
         )}
-        <Button variant="ghost" size="sm" onClick={() => setViewInvoice(null)}>← Wapas</Button>
-        <div className="glass-card p-6">
+        <Button variant="ghost" size="sm" onClick={() => setViewInvoice(null)} className="text-xs md:text-sm">← Wapas</Button>
+        <div className="glass-card p-4 md:p-6">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <div>
               <h3 className="text-lg font-bold text-foreground">Invoice: {inv.invoiceNumber}</h3>
