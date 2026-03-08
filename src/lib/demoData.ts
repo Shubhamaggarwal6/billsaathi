@@ -89,7 +89,7 @@ export const initialInvoices: Invoice[] = [
     customerId: 'c1', customerName: 'Amit Kumar', customerGst: '27AAACM5346P1ZH',
     customerAddress: 'Shop 12, MG Road, Pune', vehicleNumber: 'MH12CD5678',
     items: [
-      { productId: 'p3', productName: 'Birla TMT Bar 8mm', hsn: '7214', quantity: 3, price: 5200, gstPercent: 18, unit: 'Quintal' },
+      { productId: 'p3', productName: 'Birla TMT Bar 8mm', hsn: '7214', quantity: 3, mrp: 5500, sellingPrice: 5200, price: 5200, discount: 0, gstPercent: 18, unit: 'Quintal' },
     ],
     totalAmount: 15600, totalGst: 2808, grandTotal: 18408, status: 'partial',
     createdBy: { id: 'emp1', name: 'Mohan', role: 'employee', timestamp: daysAgoISO(5) },
