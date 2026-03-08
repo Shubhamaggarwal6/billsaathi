@@ -178,6 +178,7 @@ export default function UserDashboard() {
           {activeTab === 'customers' && <CustomerManager />}
           {activeTab === 'products' && <ProductManager />}
           {activeTab === 'reports' && <ReportsPanel />}
+          {activeTab === 'purchases' && <PurchaseRegister />}
           {activeTab === 'employees' && <EmployeeManager />}
           {activeTab === 'settings' && <SettingsPanel />}
         </main>
