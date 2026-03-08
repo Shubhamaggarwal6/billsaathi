@@ -1,0 +1,120 @@
+import { User, Customer, Product, Invoice } from './types';
+
+const today = new Date();
+const todayStr = today.toISOString().split('T')[0];
+
+function daysFromNow(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+}
+
+function daysAgo(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().split('T')[0];
+}
+
+export const initialUsers: User[] = [
+  {
+    id: 'admin1',
+    username: 'admin',
+    password: 'admin123',
+    role: 'admin',
+    firmName: 'BillSaathi HQ',
+    gstNumber: '',
+    email: 'admin@billsaathi.com',
+    phone: '9999999999',
+    plan: 'Enterprise',
+    maxEmployees: 0,
+    subscriptionStart: daysAgo(30),
+    subscriptionEnd: daysFromNow(335),
+    active: true,
+    showStockToEmployees: false,
+  },
+  {
+    id: 'user1',
+    username: 'rajesh',
+    password: 'rajesh123',
+    role: 'user',
+    firmName: 'Rajesh Traders',
+    gstNumber: '27AABCU9603R1ZM',
+    email: 'rajesh@traders.com',
+    phone: '9876543210',
+    plan: 'Pro',
+    maxEmployees: 5,
+    subscriptionStart: daysAgo(25),
+    subscriptionEnd: daysFromNow(5),
+    active: true,
+    showStockToEmployees: true,
+  },
+  {
+    id: 'user2',
+    username: 'sunita',
+    password: 'sunita123',
+    role: 'user',
+    firmName: 'Sunita Electronics',
+    gstNumber: '07CQZPS3762Q1ZV',
+    email: 'sunita@electronics.com',
+    phone: '9876543211',
+    plan: 'Basic',
+    maxEmployees: 2,
+    subscriptionStart: daysAgo(10),
+    subscriptionEnd: daysFromNow(200),
+    active: true,
+    showStockToEmployees: false,
+  },
+  {
+    id: 'emp1',
+    username: 'mohan',
+    password: 'mohan123',
+    role: 'employee',
+    firmName: 'Rajesh Traders',
+    gstNumber: '',
+    email: 'mohan@traders.com',
+    phone: '9876543212',
+    plan: 'Pro',
+    maxEmployees: 0,
+    subscriptionStart: daysAgo(25),
+    subscriptionEnd: daysFromNow(5),
+    active: true,
+    parentUserId: 'user1',
+    showStockToEmployees: false,
+  },
+];
+
+export const initialCustomers: Customer[] = [
+  { id: 'c1', userId: 'user1', name: 'Amit Kumar', phone: '9123456789', gstNumber: '27AAACM5346P1ZH', address: 'Shop 12, MG Road, Pune' },
+  { id: 'c2', userId: 'user1', name: 'Priya Sharma', phone: '9234567890', gstNumber: '', address: '45 Station Road, Mumbai' },
+  { id: 'c3', userId: 'user2', name: 'Vikram Singh', phone: '9345678901', gstNumber: '07AAACV1234B1ZX', address: '78 Nehru Place, Delhi' },
+];
+
+export const initialProducts: Product[] = [
+  { id: 'p1', userId: 'user1', name: 'Tata Steel Rod 12mm', hsn: '7214', price: 4500, gstPercent: 18, unit: 'Quintal', stock: 50, lowStockThreshold: 10 },
+  { id: 'p2', userId: 'user1', name: 'ACC Cement 50kg', hsn: '2523', price: 380, gstPercent: 28, unit: 'Bag', stock: 200, lowStockThreshold: 30 },
+  { id: 'p3', userId: 'user1', name: 'Birla TMT Bar 8mm', hsn: '7214', price: 5200, gstPercent: 18, unit: 'Quintal', stock: 8, lowStockThreshold: 10 },
+  { id: 'p4', userId: 'user2', name: 'Samsung LED TV 43"', hsn: '8528', price: 32000, gstPercent: 18, unit: 'Piece', stock: 15, lowStockThreshold: 5 },
+  { id: 'p5', userId: 'user2', name: 'Havells Wire 1.5mm', hsn: '8544', price: 1800, gstPercent: 18, unit: 'Coil', stock: 3, lowStockThreshold: 5 },
+];
+
+export const initialInvoices: Invoice[] = [
+  {
+    id: 'inv1', userId: 'user1', invoiceNumber: 'RT-2024-001', date: daysAgo(2),
+    customerId: 'c1', customerName: 'Amit Kumar', customerGst: '27AAACM5346P1ZH',
+    customerAddress: 'Shop 12, MG Road, Pune', vehicleNumber: 'MH12AB1234',
+    items: [
+      { productId: 'p1', productName: 'Tata Steel Rod 12mm', hsn: '7214', quantity: 5, price: 4500, gstPercent: 18, unit: 'Quintal' },
+      { productId: 'p2', productName: 'ACC Cement 50kg', hsn: '2523', quantity: 50, price: 380, gstPercent: 28, unit: 'Bag' },
+    ],
+    totalAmount: 41500, totalGst: 9370, grandTotal: 50870, status: 'paid', createdBy: 'rajesh'
+  },
+  {
+    id: 'inv2', userId: 'user1', invoiceNumber: 'RT-2024-002', date: todayStr,
+    customerId: 'c2', customerName: 'Priya Sharma', customerGst: '',
+    customerAddress: '45 Station Road, Mumbai', vehicleNumber: '',
+    items: [
+      { productId: 'p2', productName: 'ACC Cement 50kg', hsn: '2523', quantity: 100, price: 380, gstPercent: 28, unit: 'Bag' },
+    ],
+    totalAmount: 38000, totalGst: 10640, grandTotal: 48640, status: 'pending', createdBy: 'rajesh'
+  },
+];
