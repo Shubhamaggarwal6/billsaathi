@@ -2,9 +2,25 @@ import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, X } from 'lucide-react';
+import { Plus, Search, X, Upload } from 'lucide-react';
 import type { Customer } from '@/lib/types';
 import CustomerProfile from '@/components/CustomerProfile';
+import BulkImportDialog from '@/components/BulkImportDialog';
+
+const CUSTOMER_COLUMNS = [
+  { key: 'name', label: 'Name', required: true, type: 'string' as const },
+  { key: 'phone', label: 'Phone', type: 'string' as const, defaultValue: '' },
+  { key: 'gstNumber', label: 'GST Number', type: 'string' as const, defaultValue: '' },
+  { key: 'address', label: 'Address', type: 'string' as const, defaultValue: '' },
+  { key: 'city', label: 'City', type: 'string' as const, defaultValue: '' },
+  { key: 'state', label: 'State', type: 'string' as const, defaultValue: '' },
+  { key: 'pincode', label: 'Pincode', type: 'string' as const, defaultValue: '' },
+];
+
+const CUSTOMER_SAMPLE = [
+  { name: 'Ajay Kumar', phone: '9876543210', gstNumber: '27AABCU9603R1ZM', address: '123 MG Road', city: 'Mumbai', state: 'Maharashtra', pincode: '400001' },
+  { name: 'Priya Sharma', phone: '9123456789', gstNumber: '', address: '45 Lajpat Nagar', city: 'Delhi', state: 'Delhi', pincode: '110024' },
+];
 
 interface Props {
   readOnly?: boolean;
