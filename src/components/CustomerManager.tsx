@@ -2,9 +2,25 @@ import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, X } from 'lucide-react';
+import { Plus, Search, X, Upload } from 'lucide-react';
 import type { Customer } from '@/lib/types';
 import CustomerProfile from '@/components/CustomerProfile';
+import BulkImportDialog from '@/components/BulkImportDialog';
+
+const CUSTOMER_COLUMNS = [
+  { key: 'name', label: 'Name', required: true, type: 'string' as const },
+  { key: 'phone', label: 'Phone', type: 'string' as const, defaultValue: '' },
+  { key: 'gstNumber', label: 'GST Number', type: 'string' as const, defaultValue: '' },
+  { key: 'address', label: 'Address', type: 'string' as const, defaultValue: '' },
+  { key: 'city', label: 'City', type: 'string' as const, defaultValue: '' },
+  { key: 'state', label: 'State', type: 'string' as const, defaultValue: '' },
+  { key: 'pincode', label: 'Pincode', type: 'string' as const, defaultValue: '' },
+];
+
+const CUSTOMER_SAMPLE = [
+  { name: 'Ajay Kumar', phone: '9876543210', gstNumber: '27AABCU9603R1ZM', address: '123 MG Road', city: 'Mumbai', state: 'Maharashtra', pincode: '400001' },
+  { name: 'Priya Sharma', phone: '9123456789', gstNumber: '', address: '45 Lajpat Nagar', city: 'Delhi', state: 'Delhi', pincode: '110024' },
+];
 
 interface Props {
   readOnly?: boolean;
@@ -15,6 +31,7 @@ export default function CustomerManager({ readOnly, filterUserId }: Props) {
   const { currentUser, customers, invoices, setCustomers } = useApp();
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
   const [viewProfile, setViewProfile] = useState<Customer | null>(null);
   const [newCust, setNewCust] = useState({ name: '', phone: '', gstNumber: '', address: '' });
 
@@ -37,7 +54,12 @@ export default function CustomerManager({ readOnly, filterUserId }: Props) {
     <div className="animate-fade-in space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-foreground">Customers</h2>
-        {!readOnly && <Button size="sm" onClick={() => setShowAdd(true)}><Plus className="w-4 h-4 mr-1" /> Customer Add</Button>}
+        {!readOnly && (
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setShowBulk(true)}><Upload className="w-4 h-4 mr-1" /> Bulk Import</Button>
+            <Button size="sm" onClick={() => setShowAdd(true)}><Plus className="w-4 h-4 mr-1" /> Customer Add</Button>
+          </div>
+        )}
       </div>
 
       <div className="relative">
@@ -98,6 +120,30 @@ export default function CustomerManager({ readOnly, filterUserId }: Props) {
           </div>
         </div>
       )}
+
+      <BulkImportDialog
+        open={showBulk}
+        onClose={() => setShowBulk(false)}
+        title="Bulk Customer Import"
+        columns={CUSTOMER_COLUMNS}
+        sampleData={CUSTOMER_SAMPLE}
+        templateFileName="CustomerTemplate"
+        onImport={(rows) => {
+          const newCustomers = rows.map((r, i) => ({
+            id: 'c_bulk_' + Date.now() + '_' + i,
+            userId,
+            name: r.name,
+            phone: r.phone || '',
+            gstNumber: r.gstNumber || '',
+            address: r.address || '',
+            city: r.city || '',
+            state: r.state || '',
+            pincode: r.pincode || '',
+            createdAt: new Date().toISOString().split('T')[0],
+          }));
+          setCustomers(prev => [...prev, ...newCustomers]);
+        }}
+      />
     </div>
   );
 }
