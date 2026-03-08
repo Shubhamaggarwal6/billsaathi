@@ -16,6 +16,8 @@ type Step =
   | 'new-customer-address'
   | 'vehicle'
   | 'add-product'
+  | 'product-selling-price'
+  | 'product-discount'
   | 'product-quantity'
   | 'new-product-name'
   | 'new-product-hsn'
@@ -51,7 +53,7 @@ export default function ChatbotInvoice() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Edit state
-  const [editTarget, setEditTarget] = useState<string | null>(null); // 'customer' | 'vehicle' | null
+  const [editTarget, setEditTarget] = useState<string | null>(null);
   const [returnStep, setReturnStep] = useState<Step | null>(null);
 
   const userId = currentUser?.role === 'employee' ? currentUser.parentUserId! : currentUser?.id!;
@@ -70,7 +72,6 @@ export default function ChatbotInvoice() {
     setMessages(prev => [...prev, { from, text, options }]);
   };
 
-  // Live suggestions on input change
   const handleInputChange = (value: string) => {
     setInput(value);
     if (step === 'select-customer' && value.trim().length >= 1) {
@@ -123,18 +124,17 @@ export default function ChatbotInvoice() {
   };
 
   const selectProduct = (p: Product) => {
-    setCurrentItem({ productId: p.id, productName: p.name, hsn: p.hsn, price: p.price, gstPercent: p.gstPercent, unit: p.unit });
+    setCurrentItem({ productId: p.id, productName: p.name, hsn: p.hsn, mrp: p.price, gstPercent: p.gstPercent, unit: p.unit });
     setSuggestions([]);
     setInput('');
     addMsg('user', p.name);
-    addMsg('bot', `${p.name} — ₹${p.price}/${p.unit} (Stock: ${p.stock})\nKitni quantity?`);
-    setStep('product-quantity');
+    addMsg('bot', `${p.name} — MRP: ₹${p.price}/${p.unit} (Stock: ${p.stock})\nSelling price kya rakhni hai? (MRP se alag ho to likhein, warna Enter dabao)`);
+    setStep('product-selling-price');
   };
 
   const handleSend = () => {
     const text = input.trim();
-    // Allow empty for skippable fields
-    const skippableSteps: Step[] = ['vehicle', 'new-customer-gst', 'new-customer-address', 'new-product-hsn'];
+    const skippableSteps: Step[] = ['vehicle', 'new-customer-gst', 'new-customer-address', 'new-product-hsn', 'product-selling-price', 'product-discount'];
     if (!text && !skippableSteps.includes(step)) return;
     setInput('');
     setSuggestions([]);
@@ -183,8 +183,17 @@ export default function ChatbotInvoice() {
       }
       case 'vehicle':
         setVehicle(text);
-        addMsg('bot', 'Kaun sa product chahiye? Naam likhein:');
-        setStep('add-product');
+        if (editTarget === 'vehicle' && returnStep) {
+          addMsg('bot', '✅ Gaadi number update ho gaya!');
+          setEditTarget(null);
+          const rs = returnStep;
+          setReturnStep(null);
+          if (rs === 'preview') { setTimeout(() => showPreview(), 0); }
+          else setStep(rs);
+        } else {
+          addMsg('bot', 'Kaun sa product chahiye? Naam likhein:');
+          setStep('add-product');
+        }
         break;
       case 'add-product': {
         const matches = myProducts.filter(p => p.name.toLowerCase().includes(text.toLowerCase()));
@@ -197,10 +206,59 @@ export default function ChatbotInvoice() {
         }
         break;
       }
+      case 'product-selling-price': {
+        const mrp = currentItem.mrp || 0;
+        let sellingPrice = mrp;
+        if (text) {
+          const sp = Number(text);
+          if (isNaN(sp) || sp <= 0) { addMsg('bot', 'Sahi price daalein!'); return; }
+          sellingPrice = sp;
+        }
+        const discountFromMrp = mrp > 0 && sellingPrice < mrp
+          ? Math.round(((mrp - sellingPrice) / mrp) * 100 * 100) / 100
+          : 0;
+        setCurrentItem(prev => ({ ...prev, sellingPrice }));
+
+        let msg = `Selling Price: ₹${sellingPrice}/${currentItem.unit}`;
+        if (discountFromMrp > 0) {
+          msg += `\n🏷️ MRP se ${discountFromMrp}% discount!`;
+        }
+        msg += `\nKoi aur discount dena hai selling price pe? (% mein likhein, ya Enter = no discount)`;
+        addMsg('bot', msg);
+        setStep('product-discount');
+        break;
+      }
+      case 'product-discount': {
+        let discountPct = 0;
+        if (text) {
+          const d = Number(text);
+          if (isNaN(d) || d < 0 || d > 100) { addMsg('bot', 'Sahi discount % daalein (0-100)!'); return; }
+          discountPct = d;
+        }
+        const sellingPrice = currentItem.sellingPrice || currentItem.mrp || 0;
+        const finalPrice = Math.round(sellingPrice * (1 - discountPct / 100) * 100) / 100;
+        setCurrentItem(prev => ({ ...prev, discount: discountPct, price: finalPrice }));
+
+        let msg = `✅ Final Price: ₹${finalPrice}/${currentItem.unit}`;
+        if (discountPct > 0) {
+          msg += ` (${discountPct}% discount on ₹${sellingPrice})`;
+        }
+        if (currentItem.mrp && finalPrice < currentItem.mrp) {
+          const totalDisc = Math.round(((currentItem.mrp - finalPrice) / currentItem.mrp) * 100 * 100) / 100;
+          msg += `\n🏷️ MRP ₹${currentItem.mrp} se kul ${totalDisc}% off`;
+        }
+        msg += `\nKitni quantity?`;
+        addMsg('bot', msg);
+        setStep('product-quantity');
+        break;
+      }
       case 'product-quantity': {
         const qty = Number(text);
         if (isNaN(qty) || qty <= 0) { addMsg('bot', 'Sahi quantity daalein!'); return; }
-        const item: InvoiceItem = { ...currentItem as InvoiceItem, quantity: qty };
+        const item: InvoiceItem = {
+          ...currentItem as InvoiceItem,
+          quantity: qty,
+        };
         setItems(prev => [...prev, item]);
         setCurrentItem({});
         addMsg('bot', `✅ ${item.productName} x ${qty} add ho gaya!\nAur product add karein?`, ['Haan ➕', 'Nahi, Invoice Banao ✅']);
@@ -214,7 +272,7 @@ export default function ChatbotInvoice() {
         break;
       case 'new-product-hsn':
         setNewProd(prev => ({ ...prev, hsn: text }));
-        addMsg('bot', 'Price (₹)?');
+        addMsg('bot', 'MRP / Price (₹)?');
         setStep('new-product-price');
         break;
       case 'new-product-price': {
@@ -240,10 +298,10 @@ export default function ChatbotInvoice() {
           price: newProd.price, gstPercent: newProd.gstPercent, unit, stock: 0, lowStockThreshold: 5
         };
         setProducts(prev => [...prev, prod]);
-        setCurrentItem({ productId: prod.id, productName: prod.name, hsn: prod.hsn, price: prod.price, gstPercent: prod.gstPercent, unit: prod.unit });
+        setCurrentItem({ productId: prod.id, productName: prod.name, hsn: prod.hsn, mrp: prod.price, gstPercent: prod.gstPercent, unit: prod.unit });
         setNewProd({ name: '', hsn: '', price: 0, gstPercent: 18, unit: 'Piece' });
-        addMsg('bot', `✅ Product "${prod.name}" save ho gaya! ₹${prod.price}/${prod.unit}\nKitni quantity?`);
-        setStep('product-quantity');
+        addMsg('bot', `✅ Product "${prod.name}" save ho gaya! MRP: ₹${prod.price}/${prod.unit}\nSelling price kya rakhni hai? (MRP se alag ho to likhein, warna Enter dabao)`);
+        setStep('product-selling-price');
         break;
       }
     }
@@ -251,7 +309,6 @@ export default function ChatbotInvoice() {
 
   const handleOptionClick = (opt: string) => {
     addMsg('user', opt);
-    // Handle various option clicks contextually
     if (step === 'confirm-customer') {
       if (opt === 'Haan ✅') {
         addMsg('bot', 'Gaadi number? (optional — khali Enter = skip)');
@@ -275,7 +332,6 @@ export default function ChatbotInvoice() {
       if (opt === '📋 Nayi Invoice Banao') resetChat();
       return;
     }
-    // "Naya Customer" from no-match
     if (opt === 'Naya Customer') {
       addMsg('bot', 'Naye customer ka naam batayein:');
       setStep('new-customer-name');
@@ -286,21 +342,18 @@ export default function ChatbotInvoice() {
       setStep('select-customer');
       return;
     }
-    // Customer selection from multiple matches
     if (step === 'select-customer') {
       const name = opt.split(' (')[0];
       const cust = myCustomers.find(c => c.name === name);
       if (cust) selectCustomer(cust);
       return;
     }
-    // Product selection from multiple matches
     if (step === 'add-product') {
       const pName = opt.split(' (₹')[0];
       const p = myProducts.find(pr => pr.name === pName);
       if (p) selectProduct(p);
       return;
     }
-    // New product flow
     if (opt === 'Haan, add karein') {
       addMsg('bot', 'Naye product ka naam?');
       setStep('new-product-name');
@@ -311,7 +364,6 @@ export default function ChatbotInvoice() {
       setStep('add-product');
       return;
     }
-    // Preview edit
     if (opt === '✏️ Kuch Badlein') {
       addMsg('bot', 'Kya badalna hai?', [
         '✏️ Customer Badlein',
@@ -373,26 +425,30 @@ export default function ChatbotInvoice() {
     const totalAmount = items.reduce((s, i) => s + i.price * i.quantity, 0);
     const totalGst = items.reduce((s, i) => s + (i.price * i.quantity * i.gstPercent) / 100, 0);
     const grandTotal = totalAmount + totalGst;
-    const itemList = items.map((it, i) => `${i + 1}. ${it.productName} x${it.quantity} = ₹${(it.price * it.quantity).toLocaleString('en-IN')} (+${it.gstPercent}% GST)`).join('\n');
+    const itemList = items.map((it, i) => {
+      let line = `${i + 1}. ${it.productName} x${it.quantity}`;
+      if (it.mrp && it.mrp !== it.price) {
+        line += ` | MRP: ₹${it.mrp} → ₹${it.price}`;
+        const totalDisc = Math.round(((it.mrp - it.price) / it.mrp) * 100 * 100) / 100;
+        line += ` (${totalDisc}% off)`;
+      }
+      line += ` = ₹${(it.price * it.quantity).toLocaleString('en-IN')} (+${it.gstPercent}% GST)`;
+      return line;
+    }).join('\n');
     addMsg('bot',
       `📋 Invoice Preview:\n\nCustomer: ${selectedCustomer?.name || 'N/A'}${vehicle ? `\nGaadi No: ${vehicle}` : ''}\n\n${itemList}\n\nSubtotal: ₹${totalAmount.toLocaleString('en-IN')}\nGST: ₹${totalGst.toLocaleString('en-IN')}\n━━━━━━━━━━━━━━━━━\nGrand Total: ₹${grandTotal.toLocaleString('en-IN')}\n(${numberToWords(Math.round(grandTotal))} Rupees Only)`,
       ['✅ Invoice Banao', '✏️ Kuch Badlein', '🗑️ Sab Cancel']
     );
   };
 
-  // After editing, if returnStep was preview, go back to preview
   useEffect(() => {
     if (editTarget === 'customer' && selectedCustomer && step === 'vehicle' && returnStep === 'preview') {
-      // Customer was re-selected, skip vehicle and show preview
       setStep('preview');
       setEditTarget(null);
       setReturnStep(null);
       setTimeout(() => showPreview(), 0);
     }
   }, [selectedCustomer, step, editTarget, returnStep]);
-
-  // Override vehicle step on edit to go back to preview
-  const originalVehicleStep = step === 'vehicle' && editTarget === 'vehicle' && returnStep === 'preview';
 
   const handleConfirm = (opt: string) => {
     if (opt === '✅ Invoice Banao') {
@@ -463,7 +519,7 @@ export default function ChatbotInvoice() {
 
     const printContent = `
       <html><head><title>Invoice ${inv.invoiceNumber}</title>
-      <style>body{font-family:Arial;padding:20px;font-size:12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #333;padding:6px;text-align:left}th{background:#1a237e;color:white}.header{text-align:center;margin-bottom:20px}.total{font-weight:bold;font-size:14px}</style></head>
+      <style>body{font-family:Arial;padding:20px;font-size:12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #333;padding:6px;text-align:left}th{background:#1a237e;color:white}.header{text-align:center;margin-bottom:20px}.total{font-weight:bold;font-size:14px}.discount{color:#e53e3e;font-size:10px}</style></head>
       <body>
         <div class="header">
           <h2>${firm?.firmName || ''}</h2>
@@ -474,11 +530,13 @@ export default function ChatbotInvoice() {
         <p><strong>Address:</strong> ${inv.customerAddress}</p>
         ${inv.vehicleNumber ? `<p><strong>Vehicle:</strong> ${inv.vehicleNumber}</p>` : ''}
         <table>
-          <tr><th>#</th><th>Product</th><th>HSN</th><th>Qty</th><th>Rate</th><th>Amount</th><th>GST%</th><th>GST Amt</th><th>Total</th></tr>
+          <tr><th>#</th><th>Product</th><th>HSN</th><th>Qty</th><th>MRP</th><th>Rate</th><th>Disc%</th><th>Amount</th><th>GST%</th><th>GST Amt</th><th>Total</th></tr>
           ${inv.items.map((item, i) => {
       const amt = item.price * item.quantity;
       const gst = amt * item.gstPercent / 100;
-      return `<tr><td>${i + 1}</td><td>${item.productName}</td><td>${item.hsn}</td><td>${item.quantity} ${item.unit}</td><td>₹${item.price}</td><td>₹${amt}</td><td>${item.gstPercent}%</td><td>₹${gst.toFixed(2)}</td><td>₹${(amt + gst).toFixed(2)}</td></tr>`;
+      const mrp = item.mrp || item.price;
+      const discPct = mrp > item.price ? Math.round(((mrp - item.price) / mrp) * 100 * 100) / 100 : 0;
+      return `<tr><td>${i + 1}</td><td>${item.productName}</td><td>${item.hsn}</td><td>${item.quantity} ${item.unit}</td><td>₹${mrp}</td><td>₹${item.price}</td><td>${discPct > 0 ? discPct + '%' : '-'}</td><td>₹${amt}</td><td>${item.gstPercent}%</td><td>₹${gst.toFixed(2)}</td><td>₹${(amt + gst).toFixed(2)}</td></tr>`;
     }).join('')}
         </table>
         <p style="margin-top:10px"><strong>Total:</strong> ₹${inv.totalAmount.toLocaleString('en-IN')} | <strong>GST:</strong> ₹${inv.totalGst.toLocaleString('en-IN')}</p>
@@ -490,7 +548,6 @@ export default function ChatbotInvoice() {
     if (w) { w.document.write(printContent); w.document.close(); w.print(); }
   };
 
-  // Get placeholder based on step
   const getPlaceholder = (): string => {
     switch (step) {
       case 'select-customer': return 'Customer ka naam, phone ya GST likhein...';
@@ -500,17 +557,18 @@ export default function ChatbotInvoice() {
       case 'new-customer-address': return 'Address likhein ya khali Enter dabao skip karne ke liye';
       case 'vehicle': return 'Jaise DL01AB1234, ya Enter dabao skip karne ke liye';
       case 'add-product': return 'Product ka naam ya HSN likhein...';
+      case 'product-selling-price': return 'Selling price likhein ya Enter = MRP same rakhein';
+      case 'product-discount': return 'Discount % likhein ya Enter = no discount';
       case 'product-quantity': return 'Quantity likhein...';
       case 'new-product-name': return 'Product ka naam...';
       case 'new-product-hsn': return 'HSN code ya khali Enter = skip';
-      case 'new-product-price': return 'Price ₹...';
+      case 'new-product-price': return 'MRP / Price ₹...';
       case 'new-product-gst': return 'GST % (default 18)';
       case 'new-product-unit': return 'Unit (Piece/Kg/Box...)';
       default: return 'Type karein...';
     }
   };
 
-  // Summary card data
   const hasSummaryData = selectedCustomer || vehicle || items.length > 0;
   const showSummary = hasSummaryData && step !== 'start' && step !== 'done';
 
@@ -558,7 +616,14 @@ export default function ChatbotInvoice() {
                 <span className="text-muted-foreground text-xs">Products:</span>
                 {items.map((it, i) => (
                   <div key={i} className="flex items-center justify-between pl-2">
-                    <span className="text-foreground text-xs">• {it.productName} x{it.quantity} = ₹{(it.price * it.quantity).toLocaleString('en-IN')}</span>
+                    <span className="text-foreground text-xs">
+                      • {it.productName} x{it.quantity} = ₹{(it.price * it.quantity).toLocaleString('en-IN')}
+                      {it.mrp && it.mrp !== it.price && (
+                        <span className="text-destructive ml-1 text-[10px]">
+                          (MRP ₹{it.mrp} → ₹{it.price}, {Math.round(((it.mrp - it.price) / it.mrp) * 100)}% off)
+                        </span>
+                      )}
+                    </span>
                     <button className="text-destructive hover:text-destructive/80 text-xs" onClick={() => {
                       setItems(prev => prev.filter((_, idx) => idx !== i));
                       addMsg('bot', `🗑️ ${it.productName} hata diya.`);
