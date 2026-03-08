@@ -40,7 +40,7 @@ interface Message {
 }
 
 export default function ChatbotInvoice() {
-  const { currentUser, users, customers, products, invoices, setCustomers, setProducts, setInvoices } = useApp();
+  const { currentUser, users, customers, products, invoices, payments, setCustomers, setProducts, setInvoices, setPayments } = useApp();
   const [messages, setMessages] = useState<Message[]>([
     { from: 'bot', text: '🙏 Namaskar! Naya invoice banayein?\nCustomer naya hai ya purana?', options: ['Purana Customer', 'Naya Customer'] }
   ]);
