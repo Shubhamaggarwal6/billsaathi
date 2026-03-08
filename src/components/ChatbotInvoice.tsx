@@ -759,7 +759,7 @@ export default function ChatbotInvoice() {
         )}
 
         {/* Input */}
-        {step !== 'done' && step !== 'start' && step !== 'confirm-customer' && step !== 'more-products' && step !== 'preview' && (
+        {step !== 'done' && step !== 'start' && step !== 'confirm-customer' && step !== 'more-products' && step !== 'preview' && step !== 'payment-type' && step !== 'payment-mode' && (
           <div className="border-t p-3 flex gap-2">
             <Input
               ref={inputRef}
