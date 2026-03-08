@@ -1,4 +1,4 @@
-import { User, Customer, Product, Invoice } from './types';
+import { User, Customer, Product, Invoice, Payment } from './types';
 
 const today = new Date();
 const todayStr = today.toISOString().split('T')[0];
@@ -15,78 +15,43 @@ function daysAgo(days: number): string {
   return d.toISOString().split('T')[0];
 }
 
+function daysAgoISO(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString();
+}
+
 export const initialUsers: User[] = [
   {
-    id: 'admin1',
-    username: 'admin',
-    password: 'admin123',
-    role: 'admin',
-    firmName: 'BillSaathi HQ',
-    gstNumber: '',
-    email: 'admin@billsaathi.com',
-    phone: '9999999999',
-    plan: 'Enterprise',
-    maxEmployees: 0,
-    subscriptionStart: daysAgo(30),
-    subscriptionEnd: daysFromNow(335),
-    active: true,
-    showStockToEmployees: false,
+    id: 'admin1', username: 'admin', password: 'admin123', role: 'admin',
+    firmName: 'BillSaathi HQ', gstNumber: '', email: 'admin@billsaathi.com', phone: '9999999999',
+    plan: 'Enterprise', maxEmployees: 0, subscriptionStart: daysAgo(30), subscriptionEnd: daysFromNow(335),
+    active: true, showStockToEmployees: false,
   },
   {
-    id: 'user1',
-    username: 'rajesh',
-    password: 'rajesh123',
-    role: 'user',
-    firmName: 'Rajesh Traders',
-    gstNumber: '27AABCU9603R1ZM',
-    email: 'rajesh@traders.com',
-    phone: '9876543210',
-    plan: 'Pro',
-    maxEmployees: 5,
-    subscriptionStart: daysAgo(25),
-    subscriptionEnd: daysFromNow(5),
-    active: true,
-    showStockToEmployees: true,
+    id: 'user1', username: 'rajesh', password: 'rajesh123', role: 'user',
+    firmName: 'Rajesh Traders', gstNumber: '27AABCU9603R1ZM', email: 'rajesh@traders.com', phone: '9876543210',
+    plan: 'Pro', maxEmployees: 5, subscriptionStart: daysAgo(25), subscriptionEnd: daysFromNow(5),
+    active: true, showStockToEmployees: true,
   },
   {
-    id: 'user2',
-    username: 'sunita',
-    password: 'sunita123',
-    role: 'user',
-    firmName: 'Sunita Electronics',
-    gstNumber: '07CQZPS3762Q1ZV',
-    email: 'sunita@electronics.com',
-    phone: '9876543211',
-    plan: 'Basic',
-    maxEmployees: 2,
-    subscriptionStart: daysAgo(10),
-    subscriptionEnd: daysFromNow(200),
-    active: true,
-    showStockToEmployees: false,
+    id: 'user2', username: 'sunita', password: 'sunita123', role: 'user',
+    firmName: 'Sunita Electronics', gstNumber: '07CQZPS3762Q1ZV', email: 'sunita@electronics.com', phone: '9876543211',
+    plan: 'Basic', maxEmployees: 2, subscriptionStart: daysAgo(10), subscriptionEnd: daysFromNow(200),
+    active: true, showStockToEmployees: false,
   },
   {
-    id: 'emp1',
-    username: 'mohan',
-    password: 'mohan123',
-    role: 'employee',
-    firmName: 'Rajesh Traders',
-    gstNumber: '',
-    email: 'mohan@traders.com',
-    phone: '9876543212',
-    plan: 'Pro',
-    maxEmployees: 0,
-    subscriptionStart: daysAgo(25),
-    subscriptionEnd: daysFromNow(5),
-    active: true,
-    parentUserId: 'user1',
-    showStockToEmployees: false,
+    id: 'emp1', username: 'mohan', password: 'mohan123', role: 'employee',
+    firmName: 'Rajesh Traders', gstNumber: '', email: 'mohan@traders.com', phone: '9876543212',
+    plan: 'Pro', maxEmployees: 0, subscriptionStart: daysAgo(25), subscriptionEnd: daysFromNow(5),
+    active: true, parentUserId: 'user1', showStockToEmployees: false,
   },
 ];
 
 export const initialCustomers: Customer[] = [
-  { id: 'c1', userId: 'user1', name: 'Amit Kumar', phone: '9123456789', gstNumber: '27AAACM5346P1ZH', address: 'Shop 12, MG Road, Pune' },
-  { id: 'c2', userId: 'user1', name: 'Priya Sharma', phone: '9234567890', gstNumber: '', address: '45 Station Road, Mumbai' },
-  { id: 'c3', userId: 'user2', name: 'Vikram Singh', phone: '9345678901', gstNumber: '07AAACV1234B1ZX', address: '78 Nehru Place, Delhi' },
+  { id: 'c1', userId: 'user1', name: 'Amit Kumar', phone: '9123456789', gstNumber: '27AAACM5346P1ZH', address: 'Shop 12, MG Road, Pune', createdAt: daysAgo(20) },
+  { id: 'c2', userId: 'user1', name: 'Priya Sharma', phone: '9234567890', gstNumber: '', address: '45 Station Road, Mumbai', createdAt: daysAgo(15) },
+  { id: 'c3', userId: 'user2', name: 'Vikram Singh', phone: '9345678901', gstNumber: '07AAACV1234B1ZX', address: '78 Nehru Place, Delhi', createdAt: daysAgo(8) },
 ];
 
 export const initialProducts: Product[] = [
@@ -106,7 +71,8 @@ export const initialInvoices: Invoice[] = [
       { productId: 'p1', productName: 'Tata Steel Rod 12mm', hsn: '7214', quantity: 5, price: 4500, gstPercent: 18, unit: 'Quintal' },
       { productId: 'p2', productName: 'ACC Cement 50kg', hsn: '2523', quantity: 50, price: 380, gstPercent: 28, unit: 'Bag' },
     ],
-    totalAmount: 41500, totalGst: 9370, grandTotal: 50870, status: 'paid', createdBy: 'rajesh'
+    totalAmount: 41500, totalGst: 9370, grandTotal: 50870, status: 'paid',
+    createdBy: { id: 'user1', name: 'Rajesh Traders', role: 'user', timestamp: daysAgoISO(2) },
   },
   {
     id: 'inv2', userId: 'user1', invoiceNumber: 'RT-2024-002', date: todayStr,
@@ -115,6 +81,28 @@ export const initialInvoices: Invoice[] = [
     items: [
       { productId: 'p2', productName: 'ACC Cement 50kg', hsn: '2523', quantity: 100, price: 380, gstPercent: 28, unit: 'Bag' },
     ],
-    totalAmount: 38000, totalGst: 10640, grandTotal: 48640, status: 'pending', createdBy: 'rajesh'
+    totalAmount: 38000, totalGst: 10640, grandTotal: 48640, status: 'pending',
+    createdBy: { id: 'user1', name: 'Rajesh Traders', role: 'user', timestamp: new Date().toISOString() },
+  },
+  {
+    id: 'inv3', userId: 'user1', invoiceNumber: 'RT-2024-003', date: daysAgo(5),
+    customerId: 'c1', customerName: 'Amit Kumar', customerGst: '27AAACM5346P1ZH',
+    customerAddress: 'Shop 12, MG Road, Pune', vehicleNumber: 'MH12CD5678',
+    items: [
+      { productId: 'p3', productName: 'Birla TMT Bar 8mm', hsn: '7214', quantity: 3, price: 5200, gstPercent: 18, unit: 'Quintal' },
+    ],
+    totalAmount: 15600, totalGst: 2808, grandTotal: 18408, status: 'partial',
+    createdBy: { id: 'emp1', name: 'Mohan', role: 'employee', timestamp: daysAgoISO(5) },
+  },
+];
+
+export const initialPayments: Payment[] = [
+  {
+    id: 'pay1', userId: 'user1', customerId: 'c1', amount: 50870, date: daysAgo(1),
+    mode: 'Bank Transfer', note: 'Full payment for RT-2024-001', timestamp: daysAgoISO(1),
+  },
+  {
+    id: 'pay2', userId: 'user1', customerId: 'c1', amount: 10000, date: daysAgo(3),
+    mode: 'UPI', note: 'Partial payment for RT-2024-003', timestamp: daysAgoISO(3),
   },
 ];
