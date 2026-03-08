@@ -522,9 +522,10 @@ export default function ChatbotInvoice() {
         const item = items.find(i => i.productId === p.id);
         return item ? { ...p, stock: Math.max(0, p.stock - item.quantity) } : p;
       }));
-      addMsg('bot', `🎉 Invoice ban gayi! Invoice no: ${invNum}\nGrand Total: ₹${(totalAmount + totalGst).toLocaleString('en-IN')}`, ['🖨️ Print Karein', '📋 Nayi Invoice Banao']);
+      setLastInvoiceGrandTotal(grandTotal);
+      addMsg('bot', `🎉 Invoice ban gayi! Invoice no: ${invNum}\nGrand Total: ₹${grandTotal.toLocaleString('en-IN')}\n\n💰 Payment leni hai?`, ['Puri Payment ✅', 'Partial Payment 💵', 'Credit / Baad mein 📝', '🖨️ Print Karein']);
       setShowInvoice(true);
-      setStep('done');
+      setStep('payment-type');
     } else {
       handleOptionClick(opt);
     }
