@@ -2,10 +2,12 @@ import { useState, useMemo } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { formatDate, numberToWords } from '@/lib/subscription';
 import { printGSTInvoice } from '@/lib/invoicePrint';
+import { downloadInvoicePDF, downloadInvoiceExcel, downloadBulkInvoiceExcel } from '@/lib/exportUtils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Eye, Printer, X, Trash2, Pencil, Plus, Minus } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Search, Eye, Printer, X, Trash2, Pencil, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import type { Invoice, InvoiceItem, Payment } from '@/lib/types';
 
 interface Props {
