@@ -38,6 +38,7 @@ export default function UserDashboard() {
     { id: 'invoices', label: 'Invoices', icon: <ClipboardList className="w-4 h-4" /> },
     { id: 'customers', label: 'Customers', icon: <Users className="w-4 h-4" /> },
     { id: 'products', label: 'Products', icon: <Package className="w-4 h-4" /> },
+    { id: 'purchases', label: 'Purchases', icon: <ShoppingCart className="w-4 h-4" /> },
     { id: 'reports', label: 'Reports', icon: <BarChart3 className="w-4 h-4" /> },
     { id: 'employees', label: 'Employees', icon: <UserPlus className="w-4 h-4" /> },
     { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> },
