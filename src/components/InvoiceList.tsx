@@ -125,11 +125,22 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
           </table>
           <div className="mt-4 text-right space-y-1">
             <p className="text-sm text-muted-foreground">Subtotal: ₹{inv.totalAmount.toLocaleString('en-IN')}</p>
-            <p className="text-sm text-muted-foreground">GST: ₹{inv.totalGst.toLocaleString('en-IN')}</p>
+            {inv.isInterState
+              ? <p className="text-sm text-muted-foreground">IGST: ₹{(inv.totalIgst || inv.totalGst).toLocaleString('en-IN')}</p>
+              : <>
+                  <p className="text-sm text-muted-foreground">CGST: ₹{(inv.totalCgst || inv.totalGst / 2).toLocaleString('en-IN')}</p>
+                  <p className="text-sm text-muted-foreground">SGST: ₹{(inv.totalSgst || inv.totalGst / 2).toLocaleString('en-IN')}</p>
+                </>
+            }
+            {inv.roundOff !== 0 && <p className="text-sm text-muted-foreground">Round Off: ₹{inv.roundOff > 0 ? '+' : ''}{inv.roundOff?.toFixed(2)}</p>}
             <p className="text-lg font-bold text-foreground">Grand Total: ₹{inv.grandTotal.toLocaleString('en-IN')}</p>
             <p className="text-xs text-muted-foreground italic">{numberToWords(Math.round(inv.grandTotal))} Rupees Only</p>
           </div>
           <div className="mt-4 flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => {
+              const firm = users.find(u => u.id === inv.userId);
+              printGSTInvoice(inv, firm);
+            }}><Printer className="w-4 h-4 mr-1" /> Print</Button>
             {!readOnly && <Button size="sm" variant="outline" onClick={() => setShowStatusModal(inv)}>✏️ Status Badlo</Button>}
             <Button size="sm" variant="ghost" onClick={() => setViewInvoice(null)}>❌ Close</Button>
           </div>
