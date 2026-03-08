@@ -142,7 +142,7 @@ export default function ChatbotInvoice() {
 
   const handleSend = () => {
     const text = input.trim();
-    const skippableSteps: Step[] = ['vehicle', 'new-customer-gst', 'new-customer-address', 'new-product-hsn', 'product-selling-price', 'product-discount'];
+    const skippableSteps: Step[] = ['vehicle', 'new-customer-gst', 'new-customer-address', 'new-product-hsn', 'product-selling-price', 'product-discount', 'payment-amount'];
     if (!text && !skippableSteps.includes(step)) return;
     setInput('');
     setSuggestions([]);
