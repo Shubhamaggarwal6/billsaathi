@@ -87,6 +87,9 @@ export default function AdminDashboard() {
       </header>
 
       <main className="p-6 max-w-7xl mx-auto space-y-6">
+        {viewUser ? (
+          <AdminUserProfile user={viewUser} onBack={() => setViewUser(null)} />
+        ) : (<>
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <div className="stat-card">
