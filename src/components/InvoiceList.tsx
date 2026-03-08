@@ -568,6 +568,11 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
             <tbody>
               {filtered.map((inv, idx) => (
                 <tr key={inv.id} className="border-b hover:bg-muted/30 transition-colors">
+                  <td className="py-2.5 px-2">
+                    <Checkbox checked={selectedIds.has(inv.id)} onCheckedChange={(checked) => {
+                      setSelectedIds(prev => { const next = new Set(prev); if (checked) next.add(inv.id); else next.delete(inv.id); return next; });
+                    }} />
+                  </td>
                   <td className="py-2.5 px-3 text-muted-foreground">{idx + 1}</td>
                   <td className="py-2.5 px-3 font-medium text-foreground">{inv.invoiceNumber}</td>
                   <td className="py-2.5 px-3 text-muted-foreground text-xs">{formatDate(inv.date)}</td>
