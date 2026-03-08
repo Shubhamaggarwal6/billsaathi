@@ -79,7 +79,7 @@ export const initialInvoices: Invoice[] = [
     customerId: 'c2', customerName: 'Priya Sharma', customerGst: '',
     customerAddress: '45 Station Road, Mumbai', vehicleNumber: '',
     items: [
-      { productId: 'p2', productName: 'ACC Cement 50kg', hsn: '2523', quantity: 100, price: 380, gstPercent: 28, unit: 'Bag' },
+      { productId: 'p2', productName: 'ACC Cement 50kg', hsn: '2523', quantity: 100, mrp: 400, sellingPrice: 380, price: 380, discount: 5, gstPercent: 28, unit: 'Bag' },
     ],
     totalAmount: 38000, totalGst: 10640, grandTotal: 48640, status: 'pending',
     createdBy: { id: 'user1', name: 'Rajesh Traders', role: 'user', timestamp: new Date().toISOString() },
