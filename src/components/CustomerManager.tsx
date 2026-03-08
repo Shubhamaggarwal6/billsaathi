@@ -31,6 +31,7 @@ export default function CustomerManager({ readOnly, filterUserId }: Props) {
   const { currentUser, customers, invoices, setCustomers } = useApp();
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
   const [viewProfile, setViewProfile] = useState<Customer | null>(null);
   const [newCust, setNewCust] = useState({ name: '', phone: '', gstNumber: '', address: '' });
 
