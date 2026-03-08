@@ -349,7 +349,7 @@ export default function ChatbotInvoice() {
       }
       return;
     }
-    if (opt.startsWith('🗑️ ') && step === 'preview') {
+    if (opt.startsWith('🗑️ ')) {
       const prodName = opt.replace('🗑️ ', '').split(' x')[0];
       setItems(prev => {
         const idx = prev.findIndex(i => i.productName === prodName);
