@@ -32,6 +32,7 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
   const [paymentModal, setPaymentModal] = useState<Invoice | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMode, setPaymentMode] = useState<Payment['mode']>('Cash');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const userId = filterUserId || (currentUser?.role === 'employee' ? currentUser?.parentUserId! : currentUser?.id!);
   const allEmployees = users.filter(u => u.parentUserId === userId);
