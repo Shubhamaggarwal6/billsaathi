@@ -2,7 +2,11 @@ import { useState, useMemo } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { formatDate } from '@/lib/subscription';
 import { Button } from '@/components/ui/button';
-import { Download } from 'lucide-react';
+import { Download, FileText, FileSpreadsheet, Package } from 'lucide-react';
+import {
+  downloadGSTR1Excel, downloadGSTR3BPDF, downloadMonthlyExcel,
+  downloadOutstandingExcel, downloadStockExcel, downloadPurchaseExcel, downloadCAPackage,
+} from '@/lib/exportUtils';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell, Legend,
@@ -123,6 +127,8 @@ export default function ReportsPanel() {
     { name: '90+ din', value: outstandingByCustomer.filter(c => c.daysOld > 90).reduce((s, c) => s + c.pending, 0), color: '#9e9e9e' },
   ].filter(d => d.value > 0);
 
+  const [caProgress, setCaProgress] = useState<string | null>(null);
+
   const exportCSV = (rows: any[][], filename: string) => {
     const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -131,19 +137,22 @@ export default function ReportsPanel() {
     URL.revokeObjectURL(url);
   };
 
-  const exportGSTR1 = () => {
-    const rows: any[][] = [
-      ['GSTR-1 Report', firmUser?.firmName || '', `GST: ${firmUser?.gstNumber || ''}`],
-      [],
-      ['--- B2B Invoices ---'],
-      ['GSTIN', 'Receiver', 'Invoice No', 'Date', 'Value', 'Place of Supply', 'Rate', 'Taxable', 'IGST', 'CGST', 'SGST'],
-      ...b2bInvoices.map(i => [i.customerGst, i.customerName, i.invoiceNumber, i.date, i.grandTotal, i.placeOfSupply || '', '', i.totalAmount, i.totalIgst, i.totalCgst, i.totalSgst]),
-      [],
-      ['--- HSN Summary ---'],
-      ['HSN', 'Description', 'UQC', 'Qty', 'Total Value', 'Rate', 'Taxable', 'IGST', 'CGST', 'SGST'],
-      ...Object.values(hsnSummary).map(h => [h.hsn, h.desc, h.unit, h.qty, h.value.toFixed(2), h.rate + '%', h.taxable.toFixed(2), h.igst.toFixed(2), h.cgst.toFixed(2), h.sgst.toFixed(2)]),
-    ];
-    exportCSV(rows, `GSTR1_${firmUser?.firmName || 'Report'}.csv`);
+  const handleDownloadGSTR1 = () => downloadGSTR1Excel(myInvoices, firmUser);
+  const handleDownloadGSTR3B = () => downloadGSTR3BPDF(firmUser, { taxable: totalTaxable, igst: totalIgst, cgst: totalCgst, sgst: totalSgst }, { igst: purchaseIgst, cgst: purchaseCgst, sgst: purchaseSgst });
+  const handleDownloadMonthly = () => downloadMonthlyExcel(myInvoices, myCustomers, myProducts, myPayments, firmUser);
+  const handleDownloadOutstanding = () => downloadOutstandingExcel(myCustomers, myInvoices, myPayments);
+  const handleDownloadStock = () => downloadStockExcel(myProducts);
+  const handleDownloadPurchases = () => downloadPurchaseExcel(myPurchases);
+  const handleDownloadCA = async () => {
+    setCaProgress('Taiyaar ho raha hai...');
+    await downloadCAPackage(
+      myInvoices, myCustomers, myProducts, myPayments, myPurchases, firmUser,
+      { taxable: totalTaxable, igst: totalIgst, cgst: totalCgst, sgst: totalSgst },
+      { igst: purchaseIgst, cgst: purchaseCgst, sgst: purchaseSgst },
+      (step, total) => setCaProgress(`Files ban rahi hain: ${step}/${total}`)
+    );
+    setCaProgress('✅ Download ho gaya!');
+    setTimeout(() => setCaProgress(null), 3000);
   };
 
   const reportTabs = [
@@ -284,8 +293,13 @@ export default function ReportsPanel() {
       {/* GSTR-1 TAB */}
       {reportTab === 'gstr1' && (
         <div className="space-y-4">
-          <div className="flex justify-end">
-            <Button size="sm" onClick={exportGSTR1}><Download className="w-4 h-4 mr-1" /> GSTR-1 Export (CSV)</Button>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20" onClick={handleDownloadGSTR1}><FileSpreadsheet className="w-4 h-4 mr-1" /> GSTR-1 Excel</Button>
+            <Button size="sm" variant="outline" className="bg-destructive/10 text-destructive border-destructive/20" onClick={handleDownloadGSTR3B}><FileText className="w-4 h-4 mr-1" /> GSTR-3B PDF</Button>
+            <Button size="sm" variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20" onClick={handleDownloadMonthly}><FileSpreadsheet className="w-4 h-4 mr-1" /> Monthly Excel</Button>
+            <Button size="sm" variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/20" onClick={handleDownloadCA} disabled={!!caProgress}>
+              <Package className="w-4 h-4 mr-1" /> {caProgress || '📦 CA Package'}
+            </Button>
           </div>
 
           {/* B2B */}
@@ -572,7 +586,14 @@ export default function ReportsPanel() {
       {reportTab === 'outstanding' && (
         <div className="space-y-4">
           <div className="glass-card p-5">
-            <h3 className="text-sm font-semibold text-foreground mb-3">💰 Outstanding / Debtors Report (CA ke liye)</h3>
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-sm font-semibold text-foreground">💰 Outstanding / Debtors Report</h3>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" className="text-xs" onClick={handleDownloadOutstanding}><FileSpreadsheet className="w-3 h-3 mr-1" /> Excel</Button>
+                <Button size="sm" variant="outline" className="text-xs" onClick={handleDownloadStock}><FileSpreadsheet className="w-3 h-3 mr-1" /> Stock</Button>
+                <Button size="sm" variant="outline" className="text-xs" onClick={handleDownloadPurchases}><FileSpreadsheet className="w-3 h-3 mr-1" /> Purchases</Button>
+              </div>
+            </div>
             <table className="w-full text-sm">
               <thead><tr className="border-b text-muted-foreground bg-muted/30">
                 <th className="text-left py-2 px-3">Customer</th>

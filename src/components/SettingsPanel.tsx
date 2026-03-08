@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
+import { downloadFullBackup } from '@/lib/exportUtils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -7,7 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { INDIAN_STATES, DEFAULT_FIRM_SETTINGS, FirmSettings } from '@/lib/types';
 
 export default function SettingsPanel() {
-  const { currentUser, setUsers } = useApp();
+  const { currentUser, users, customers, products, invoices, payments, purchases, setUsers } = useApp();
+  const [backupProgress, setBackupProgress] = useState<string | null>(null);
   const [oldPw, setOldPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
@@ -146,6 +148,28 @@ export default function SettingsPanel() {
       </div>
 
       <Button onClick={handleFirmUpdate} className="w-full">💾 Sab Settings Save Karein</Button>
+
+      {/* Data Backup */}
+      <div className="glass-card p-5">
+        <h3 className="text-sm font-semibold text-foreground mb-3">💾 Data Backup</h3>
+        <p className="text-xs text-muted-foreground mb-3">Poora data (products, customers, invoices, payments, purchases, employees) ek ZIP mein download karein.</p>
+        <Button className="w-full" variant="outline"
+          disabled={!!backupProgress}
+          onClick={async () => {
+            if (!currentUser) return;
+            setBackupProgress('Taiyaar ho raha hai...');
+            await downloadFullBackup(
+              currentUser, users, customers.filter(c => c.userId === currentUser.id), products.filter(p => p.userId === currentUser.id),
+              invoices.filter(i => i.userId === currentUser.id), payments.filter(p => p.userId === currentUser.id),
+              purchases.filter(p => p.userId === currentUser.id),
+              (step, total) => setBackupProgress(`Files ban rahi hain: ${step}/${total}`)
+            );
+            setBackupProgress('✅ Backup download ho gaya!');
+            setTimeout(() => setBackupProgress(null), 3000);
+          }}>
+          {backupProgress || '📦 Poora Data Backup Karein'}
+        </Button>
+      </div>
 
       {msg && <p className="text-sm" style={{ color: msg.startsWith('✅') ? 'hsl(var(--success))' : 'hsl(var(--critical))' }}>{msg}</p>}
     </div>

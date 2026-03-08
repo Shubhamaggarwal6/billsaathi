@@ -2,10 +2,12 @@ import { useState, useMemo } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { formatDate, numberToWords } from '@/lib/subscription';
 import { printGSTInvoice } from '@/lib/invoicePrint';
+import { downloadInvoicePDF, downloadInvoiceExcel, downloadBulkInvoiceExcel } from '@/lib/exportUtils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Eye, Printer, X, Trash2, Pencil, Plus, Minus } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Search, Eye, Printer, X, Trash2, Pencil, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import type { Invoice, InvoiceItem, Payment } from '@/lib/types';
 
 interface Props {
@@ -30,6 +32,7 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
   const [paymentModal, setPaymentModal] = useState<Invoice | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMode, setPaymentMode] = useState<Payment['mode']>('Cash');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const userId = filterUserId || (currentUser?.role === 'employee' ? currentUser?.parentUserId! : currentUser?.id!);
   const allEmployees = users.filter(u => u.parentUserId === userId);
@@ -254,6 +257,17 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
               const firm = users.find(u => u.id === inv.userId);
               printGSTInvoice(inv, firm);
             }}><Printer className="w-4 h-4 mr-1" /> Print</Button>
+            <Button size="sm" variant="outline" className="bg-destructive/10 text-destructive border-destructive/20" onClick={() => {
+              const firm = users.find(u => u.id === inv.userId);
+              downloadInvoicePDF(inv, firm);
+            }}><FileText className="w-4 h-4 mr-1" /> PDF</Button>
+            <Button size="sm" variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20" onClick={() => downloadInvoiceExcel(inv)}>
+              <FileSpreadsheet className="w-4 h-4 mr-1" /> Excel
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => {
+              const firm = users.find(u => u.id === inv.userId);
+              printGSTInvoice(inv, firm, 'all');
+            }}><Printer className="w-4 h-4 mr-1" /> 3 Copies</Button>
             {!readOnly && (
               <>
                 <Button size="sm" variant="outline" onClick={() => setShowStatusModal(inv)}>✏️ Status</Button>
@@ -510,13 +524,36 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
         </div>
       </div>
 
-      <p className="text-xs text-muted-foreground">{filtered.length} invoices mili</p>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <p className="text-xs text-muted-foreground">{filtered.length} invoices mili</p>
+        <div className="flex gap-2 flex-wrap">
+          {selectedIds.size > 0 && (
+            <>
+              <span className="text-xs text-primary font-medium self-center">{selectedIds.size} selected</span>
+              <Button size="sm" variant="outline" className="text-xs h-7 bg-green-500/10 text-green-600 border-green-500/20" onClick={() => {
+                const sel = filtered.filter(i => selectedIds.has(i.id));
+                downloadBulkInvoiceExcel(sel, dateFrom && dateTo ? `${dateFrom}_to_${dateTo}` : undefined);
+              }}><FileSpreadsheet className="w-3 h-3 mr-1" /> Export Excel</Button>
+            </>
+          )}
+          <Button size="sm" variant="outline" className="text-xs h-7 bg-green-500/10 text-green-600 border-green-500/20" onClick={() => downloadBulkInvoiceExcel(filtered)}>
+            <Download className="w-3 h-3 mr-1" /> All Excel
+          </Button>
+        </div>
+      </div>
 
       {/* Invoice Table */}
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="border-b text-muted-foreground bg-muted/30">
+              <th className="py-2.5 px-2 w-8">
+                <Checkbox checked={selectedIds.size === filtered.length && filtered.length > 0}
+                  onCheckedChange={(checked) => {
+                    if (checked) setSelectedIds(new Set(filtered.map(i => i.id)));
+                    else setSelectedIds(new Set());
+                  }} />
+              </th>
               <th className="text-left py-2.5 px-3">#</th>
               <th className="text-left py-2.5 px-3">Invoice No</th>
               <th className="text-left py-2.5 px-3">Date</th>
@@ -531,6 +568,11 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
             <tbody>
               {filtered.map((inv, idx) => (
                 <tr key={inv.id} className="border-b hover:bg-muted/30 transition-colors">
+                  <td className="py-2.5 px-2">
+                    <Checkbox checked={selectedIds.has(inv.id)} onCheckedChange={(checked) => {
+                      setSelectedIds(prev => { const next = new Set(prev); if (checked) next.add(inv.id); else next.delete(inv.id); return next; });
+                    }} />
+                  </td>
                   <td className="py-2.5 px-3 text-muted-foreground">{idx + 1}</td>
                   <td className="py-2.5 px-3 font-medium text-foreground">{inv.invoiceNumber}</td>
                   <td className="py-2.5 px-3 text-muted-foreground text-xs">{formatDate(inv.date)}</td>

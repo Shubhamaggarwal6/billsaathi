@@ -1,4 +1,3 @@
-import { useApp } from '@/contexts/AppContext';
 import { numberToWords } from '@/lib/subscription';
 import type { Invoice, User, FirmSettings } from '@/lib/types';
 
@@ -46,7 +45,6 @@ export function printGSTInvoice(inv: Invoice, firm: User | null | undefined, cop
         <h2>TAX INVOICE</h2>
         <p class="copy-label">(${COPY_LABELS[copy] || 'Original for Recipient'})</p>
       </div>
-
       <div class="two-col">
         <div class="col">
           <h4>SELLER DETAILS:</h4>
@@ -65,7 +63,6 @@ export function printGSTInvoice(inv: Invoice, firm: User | null | undefined, cop
           <p>State: ${inv.customerState || ''} | Code: ${inv.customerStateCode || ''}</p>
         </div>
       </div>
-
       <div class="info-row">
         <span>Invoice No: <strong>${inv.invoiceNumber}</strong></span>
         <span>Date: <strong>${inv.date}</strong></span>
@@ -73,7 +70,6 @@ export function printGSTInvoice(inv: Invoice, firm: User | null | undefined, cop
         ${inv.vehicleNumber ? `<span>Vehicle: <strong>${inv.vehicleNumber}</strong></span>` : ''}
         ${inv.ewayBillNumber ? `<span>E-Way Bill: <strong>${inv.ewayBillNumber}</strong></span>` : ''}
       </div>
-
       <table class="items">
         <tr>
           <th>Sr</th><th>Description</th><th>HSN</th><th>Qty</th><th>Unit</th>
@@ -92,7 +88,6 @@ export function printGSTInvoice(inv: Invoice, firm: User | null | undefined, cop
     </tr>`;
   }).join('')}
       </table>
-
       <h4 style="margin-top:8px">${inv.isInterState ? 'INTER-STATE (IGST)' : 'INTRA-STATE (CGST + SGST)'} Tax Breakup:</h4>
       <table class="tax-table">
         <tr>
@@ -108,7 +103,6 @@ export function printGSTInvoice(inv: Invoice, firm: User | null | undefined, cop
     : `<td>${h.rate / 2}%</td><td>₹${h.cgst.toFixed(2)}</td><td>${h.rate / 2}%</td><td>₹${h.sgst.toFixed(2)}</td>`}
         </tr>`).join('')}
       </table>
-
       <div class="totals">
         <p>Taxable Value: ₹${inv.totalAmount.toLocaleString('en-IN')}</p>
         ${inv.isInterState
@@ -118,7 +112,6 @@ export function printGSTInvoice(inv: Invoice, firm: User | null | undefined, cop
         <p class="grand-total">GRAND TOTAL: ₹${inv.grandTotal.toLocaleString('en-IN')}</p>
         <p class="words">Amount in Words: ${numberToWords(Math.round(inv.grandTotal))} Rupees Only</p>
       </div>
-
       ${fs.showBankDetails && fs.bankName ? `
       <div class="bank-section">
         <div>
@@ -142,7 +135,6 @@ export function printGSTInvoice(inv: Invoice, firm: User | null | undefined, cop
           <p class="bold">${firm?.firmName || ''}</p>
         </div>
       </div>`}
-
       ${fs.showTerms ? `
       <div class="terms">
         <h4>Terms & Conditions:</h4>
