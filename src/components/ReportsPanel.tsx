@@ -293,8 +293,13 @@ export default function ReportsPanel() {
       {/* GSTR-1 TAB */}
       {reportTab === 'gstr1' && (
         <div className="space-y-4">
-          <div className="flex justify-end">
-            <Button size="sm" onClick={exportGSTR1}><Download className="w-4 h-4 mr-1" /> GSTR-1 Export (CSV)</Button>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20" onClick={handleDownloadGSTR1}><FileSpreadsheet className="w-4 h-4 mr-1" /> GSTR-1 Excel</Button>
+            <Button size="sm" variant="outline" className="bg-destructive/10 text-destructive border-destructive/20" onClick={handleDownloadGSTR3B}><FileText className="w-4 h-4 mr-1" /> GSTR-3B PDF</Button>
+            <Button size="sm" variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20" onClick={handleDownloadMonthly}><FileSpreadsheet className="w-4 h-4 mr-1" /> Monthly Excel</Button>
+            <Button size="sm" variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/20" onClick={handleDownloadCA} disabled={!!caProgress}>
+              <Package className="w-4 h-4 mr-1" /> {caProgress || '📦 CA Package'}
+            </Button>
           </div>
 
           {/* B2B */}
