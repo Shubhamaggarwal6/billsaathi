@@ -590,7 +590,7 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
                       {inv.createdBy.role === 'user' ? '👑' : '👷'} {inv.createdBy.name}
                     </span>
                   </td>
-                  <td className="py-2.5 px-3">
+                  <td className="py-2.5 px-3" onClick={e => e.stopPropagation()}>
                     <div className="flex gap-1">
                       <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => setViewInvoice(inv)}>👁️</Button>
                       {!readOnly && (
