@@ -60,6 +60,9 @@ export default function ChatbotInvoice() {
   // Edit state
   const [editTarget, setEditTarget] = useState<string | null>(null);
   const [returnStep, setReturnStep] = useState<Step | null>(null);
+  // Payment state
+  const [paymentMode, setPaymentMode] = useState<string>('');
+  const [lastInvoiceGrandTotal, setLastInvoiceGrandTotal] = useState(0);
 
   const userId = currentUser?.role === 'employee' ? currentUser.parentUserId! : currentUser?.id!;
   const myCustomers = customers.filter(c => c.userId === userId);
