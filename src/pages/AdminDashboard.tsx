@@ -4,14 +4,16 @@ import { getSubscriptionStatus, formatDate, addDuration } from '@/lib/subscripti
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Users, FileText, AlertTriangle, TrendingUp, LogOut, Plus, RefreshCw, X } from 'lucide-react';
+import { Users, FileText, AlertTriangle, TrendingUp, LogOut, Plus, RefreshCw, X, Eye } from 'lucide-react';
 import SubscriptionBadge from '@/components/SubscriptionBadge';
-import type { PlanType, SubscriptionDuration } from '@/lib/types';
+import AdminUserProfile from '@/components/AdminUserProfile';
+import type { PlanType, SubscriptionDuration, User } from '@/lib/types';
 
 export default function AdminDashboard() {
   const { users, invoices, setUsers, setCurrentUser } = useApp();
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [showRenew, setShowRenew] = useState<string | null>(null);
+  const [viewUser, setViewUser] = useState<User | null>(null);
   const [renewDuration, setRenewDuration] = useState<SubscriptionDuration>('1month');
   const [renewCustomDate, setRenewCustomDate] = useState('');
 
@@ -84,6 +86,9 @@ export default function AdminDashboard() {
       </header>
 
       <main className="p-6 max-w-7xl mx-auto space-y-6">
+        {viewUser ? (
+          <AdminUserProfile user={viewUser} onBack={() => setViewUser(null)} />
+        ) : (<>
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <div className="stat-card">
@@ -180,6 +185,9 @@ export default function AdminDashboard() {
                     <td className="py-2.5 px-2"><SubscriptionBadge endDate={u.subscriptionEnd} compact /></td>
                     <td className="py-2.5 px-2">
                       <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => setViewUser(u)} className="text-xs h-7">
+                          <Eye className="w-3 h-3 mr-1" /> View
+                        </Button>
                         <Button size="sm" variant="ghost" onClick={() => toggleActive(u.id)} className="text-xs h-7">
                           {u.active ? '🟢' : '🔴'}
                         </Button>
@@ -282,6 +290,7 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
+        </>)}
       </main>
     </div>
   );
