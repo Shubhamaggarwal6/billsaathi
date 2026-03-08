@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { numberToWords } from '@/lib/subscription';
 import { getStateFromGST } from '@/lib/types';
+import { printGSTInvoice } from '@/lib/invoicePrint';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Printer, Pencil, Trash2, RotateCcw, Home } from 'lucide-react';
