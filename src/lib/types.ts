@@ -154,6 +154,7 @@ export interface Invoice {
   isInterState: boolean;
   placeOfSupply: string;
   status: 'paid' | 'pending' | 'partial';
+  paidAmount: number;
   createdBy: InvoiceCreator;
 }
 
@@ -163,7 +164,8 @@ export interface Payment {
   customerId: string;
   amount: number;
   date: string;
-  mode: 'Cash' | 'UPI' | 'Bank Transfer' | 'Cheque';
+  mode: 'Cash' | 'UPI' | 'Bank Transfer' | 'RTGS' | 'Cheque';
+  invoiceId?: string;
   note: string;
   timestamp: string;
 }

@@ -5,8 +5,8 @@ import { printGSTInvoice } from '@/lib/invoicePrint';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Eye, Printer, X } from 'lucide-react';
-import type { Invoice } from '@/lib/types';
+import { Search, Eye, Printer, X, Trash2, Pencil, Plus, Minus } from 'lucide-react';
+import type { Invoice, InvoiceItem, Payment } from '@/lib/types';
 
 interface Props {
   readOnly?: boolean;
@@ -15,7 +15,7 @@ interface Props {
 }
 
 export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }: Props) {
-  const { currentUser, users, invoices, setInvoices } = useApp();
+  const { currentUser, users, invoices, setInvoices, payments, setPayments, products, setProducts } = useApp();
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -23,6 +23,13 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
   const [creatorFilter, setCreatorFilter] = useState('all');
   const [viewInvoice, setViewInvoice] = useState<Invoice | null>(null);
   const [showStatusModal, setShowStatusModal] = useState<Invoice | null>(null);
+  const [editInvoice, setEditInvoice] = useState<Invoice | null>(null);
+  const [editItems, setEditItems] = useState<InvoiceItem[]>([]);
+  const [editVehicle, setEditVehicle] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState<Invoice | null>(null);
+  const [paymentModal, setPaymentModal] = useState<Invoice | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMode, setPaymentMode] = useState<Payment['mode']>('Cash');
 
   const userId = filterUserId || (currentUser?.role === 'employee' ? currentUser?.parentUserId! : currentUser?.id!);
   const allEmployees = users.filter(u => u.parentUserId === userId);
@@ -67,11 +74,93 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
     setShowStatusModal(null);
   };
 
+  const handleDelete = (inv: Invoice) => {
+    // Restore stock
+    setProducts(prev => prev.map(p => {
+      const item = inv.items.find(i => i.productId === p.id);
+      return item ? { ...p, stock: p.stock + item.quantity } : p;
+    }));
+    // Remove invoice and associated payments
+    setInvoices(prev => prev.filter(i => i.id !== inv.id));
+    setPayments(prev => prev.filter(p => p.invoiceId !== inv.id));
+    setDeleteConfirm(null);
+    setViewInvoice(null);
+  };
+
+  const startEdit = (inv: Invoice) => {
+    setEditInvoice(inv);
+    setEditItems(inv.items.map(i => ({ ...i })));
+    setEditVehicle(inv.vehicleNumber);
+  };
+
+  const recalcInvoice = (items: InvoiceItem[], inv: Invoice): Partial<Invoice> => {
+    const totalAmount = items.reduce((s, i) => s + i.price * i.quantity, 0);
+    const totalGst = items.reduce((s, i) => s + (i.price * i.quantity * i.gstPercent) / 100, 0);
+    const rawGrand = totalAmount + totalGst;
+    const grandTotal = Math.round(rawGrand);
+    const roundOff = Math.round((grandTotal - rawGrand) * 100) / 100;
+    const totalCgst = inv.isInterState ? 0 : totalGst / 2;
+    const totalSgst = inv.isInterState ? 0 : totalGst / 2;
+    const totalIgst = inv.isInterState ? totalGst : 0;
+    return { totalAmount, totalGst, totalCgst, totalSgst, totalIgst, grandTotal, roundOff };
+  };
+
+  const saveEdit = () => {
+    if (!editInvoice) return;
+    const calcs = recalcInvoice(editItems, editInvoice);
+    // Restore old stock, deduct new
+    setProducts(prev => {
+      let updated = [...prev];
+      for (const oldItem of editInvoice.items) {
+        updated = updated.map(p => p.id === oldItem.productId ? { ...p, stock: p.stock + oldItem.quantity } : p);
+      }
+      for (const newItem of editItems) {
+        updated = updated.map(p => p.id === newItem.productId ? { ...p, stock: Math.max(0, p.stock - newItem.quantity) } : p);
+      }
+      return updated;
+    });
+    setInvoices(prev => prev.map(i => i.id === editInvoice.id ? { ...i, ...calcs, items: editItems, vehicleNumber: editVehicle } : i));
+    if (viewInvoice?.id === editInvoice.id) {
+      setViewInvoice({ ...editInvoice, ...calcs as any, items: editItems, vehicleNumber: editVehicle });
+    }
+    setEditInvoice(null);
+  };
+
+  const handleAddPayment = () => {
+    if (!paymentModal) return;
+    const amt = Number(paymentAmount);
+    if (isNaN(amt) || amt <= 0) return;
+    const payment: Payment = {
+      id: 'pay_' + Date.now(),
+      userId,
+      customerId: paymentModal.customerId,
+      invoiceId: paymentModal.id,
+      amount: amt,
+      date: new Date().toISOString().split('T')[0],
+      mode: paymentMode,
+      note: `Payment for ${paymentModal.invoiceNumber}`,
+      timestamp: new Date().toISOString(),
+    };
+    setPayments(prev => [...prev, payment]);
+    const newPaid = (paymentModal.paidAmount || 0) + amt;
+    const newStatus = newPaid >= paymentModal.grandTotal ? 'paid' as const : 'partial' as const;
+    setInvoices(prev => prev.map(i => i.id === paymentModal.id ? { ...i, status: newStatus, paidAmount: newPaid } : i));
+    if (viewInvoice?.id === paymentModal.id) {
+      setViewInvoice(prev => prev ? { ...prev, status: newStatus, paidAmount: newPaid } : null);
+    }
+    setPaymentModal(null);
+    setPaymentAmount('');
+    setPaymentMode('Cash');
+  };
+
+  const invoicePayments = (invId: string) => payments.filter(p => p.invoiceId === invId);
+
   const firm = owner || currentUser;
 
   // Invoice detail view
   if (viewInvoice) {
     const inv = viewInvoice;
+    const invPayments = invoicePayments(inv.id);
     return (
       <div className="space-y-4 animate-fade-in">
         {readOnly && (
@@ -136,34 +225,227 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
             <p className="text-lg font-bold text-foreground">Grand Total: ₹{inv.grandTotal.toLocaleString('en-IN')}</p>
             <p className="text-xs text-muted-foreground italic">{numberToWords(Math.round(inv.grandTotal))} Rupees Only</p>
           </div>
-          <div className="mt-4 flex gap-2">
+
+          {/* Payment History */}
+          {(invPayments.length > 0 || inv.paidAmount > 0) && (
+            <div className="mt-4 border-t pt-3">
+              <h4 className="text-sm font-semibold text-foreground mb-2">💰 Payment History</h4>
+              {invPayments.length > 0 ? (
+                <div className="space-y-1">
+                  {invPayments.map(p => (
+                    <div key={p.id} className="flex justify-between text-xs bg-muted/30 rounded px-3 py-1.5">
+                      <span className="text-foreground">₹{p.amount.toLocaleString('en-IN')} — {p.mode}</span>
+                      <span className="text-muted-foreground">{formatDate(p.date)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">Paid: ₹{(inv.paidAmount || 0).toLocaleString('en-IN')}</p>
+              )}
+              <div className="flex justify-between text-sm mt-2 font-medium">
+                <span className="text-foreground">Paid: ₹{(inv.paidAmount || 0).toLocaleString('en-IN')}</span>
+                <span className="text-destructive">Baaki: ₹{Math.max(0, inv.grandTotal - (inv.paidAmount || 0)).toLocaleString('en-IN')}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4 flex gap-2 flex-wrap">
             <Button size="sm" variant="outline" onClick={() => {
               const firm = users.find(u => u.id === inv.userId);
               printGSTInvoice(inv, firm);
             }}><Printer className="w-4 h-4 mr-1" /> Print</Button>
-            {!readOnly && <Button size="sm" variant="outline" onClick={() => setShowStatusModal(inv)}>✏️ Status Badlo</Button>}
+            {!readOnly && (
+              <>
+                <Button size="sm" variant="outline" onClick={() => setShowStatusModal(inv)}>✏️ Status</Button>
+                <Button size="sm" variant="outline" onClick={() => startEdit(inv)}><Pencil className="w-4 h-4 mr-1" /> Edit</Button>
+                <Button size="sm" variant="outline" onClick={() => setPaymentModal(inv)}>💰 Payment Add</Button>
+                <Button size="sm" variant="destructive" onClick={() => setDeleteConfirm(inv)}><Trash2 className="w-4 h-4 mr-1" /> Delete</Button>
+              </>
+            )}
             <Button size="sm" variant="ghost" onClick={() => setViewInvoice(null)}>❌ Close</Button>
           </div>
         </div>
 
-        {showStatusModal && (
-          <div className="fixed inset-0 bg-foreground/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="glass-card w-full max-w-sm p-6 animate-fade-in">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="font-semibold text-foreground">Status Badlo</h3>
-                <Button variant="ghost" size="sm" onClick={() => setShowStatusModal(null)}><X className="w-4 h-4" /></Button>
+        {/* Modals rendered below */}
+        {renderStatusModal()}
+        {renderDeleteModal()}
+        {renderEditModal()}
+        {renderPaymentModal()}
+      </div>
+    );
+  }
+
+  // --- Modal renderers ---
+  function renderStatusModal() {
+    if (!showStatusModal) return null;
+    return (
+      <div className="fixed inset-0 bg-foreground/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="glass-card w-full max-w-sm p-6 animate-fade-in">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-semibold text-foreground">Status Badlo — {showStatusModal.invoiceNumber}</h3>
+            <Button variant="ghost" size="sm" onClick={() => setShowStatusModal(null)}><X className="w-4 h-4" /></Button>
+          </div>
+          <div className="space-y-2">
+            {(['paid', 'pending', 'partial'] as const).map(s => (
+              <Button key={s} variant={showStatusModal.status === s ? 'default' : 'outline'} className="w-full justify-start"
+                onClick={() => handleStatusChange(showStatusModal, s)}>
+                {s === 'paid' ? '🟢 Paid' : s === 'partial' ? '🟡 Partial' : '🔴 Pending'}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderDeleteModal() {
+    if (!deleteConfirm) return null;
+    return (
+      <div className="fixed inset-0 bg-foreground/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="glass-card w-full max-w-sm p-6 animate-fade-in">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-semibold text-foreground">⚠️ Invoice Delete Karein?</h3>
+            <Button variant="ghost" size="sm" onClick={() => setDeleteConfirm(null)}><X className="w-4 h-4" /></Button>
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">
+            Kya aap sure hain ki <span className="font-bold text-foreground">{deleteConfirm.invoiceNumber}</span> delete karna hai?
+            <br />Customer: {deleteConfirm.customerName} | Total: ₹{deleteConfirm.grandTotal.toLocaleString('en-IN')}
+            <br /><span className="text-destructive text-xs">⚠️ Yeh action undo nahi hoga. Stock wapas aa jayega.</span>
+          </p>
+          <div className="flex gap-2">
+            <Button variant="destructive" className="flex-1" onClick={() => handleDelete(deleteConfirm)}>
+              <Trash2 className="w-4 h-4 mr-1" /> Haan, Delete Karo
+            </Button>
+            <Button variant="outline" className="flex-1" onClick={() => setDeleteConfirm(null)}>Nahi</Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderEditModal() {
+    if (!editInvoice) return null;
+    return (
+      <div className="fixed inset-0 bg-foreground/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="glass-card w-full max-w-lg p-6 animate-fade-in max-h-[90vh] overflow-y-auto">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-semibold text-foreground">✏️ Invoice Edit — {editInvoice.invoiceNumber}</h3>
+            <Button variant="ghost" size="sm" onClick={() => setEditInvoice(null)}><X className="w-4 h-4" /></Button>
+          </div>
+          <div className="mb-3">
+            <label className="text-xs text-muted-foreground">Vehicle Number</label>
+            <Input value={editVehicle} onChange={e => setEditVehicle(e.target.value)} className="h-8 text-sm" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs text-muted-foreground font-semibold">Products:</label>
+            {editItems.map((item, i) => (
+              <div key={i} className="border rounded-lg p-3 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-foreground">{item.productName}</span>
+                  <Button size="sm" variant="ghost" className="text-destructive h-6" onClick={() => {
+                    setEditItems(prev => prev.filter((_, idx) => idx !== i));
+                  }}><Trash2 className="w-3 h-3" /></Button>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">Qty</label>
+                    <Input type="number" value={item.quantity} className="h-7 text-xs"
+                      onChange={e => {
+                        const qty = Number(e.target.value) || 0;
+                        setEditItems(prev => prev.map((it, idx) => idx === i ? { ...it, quantity: qty } : it));
+                      }} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">Price (₹)</label>
+                    <Input type="number" value={item.price} className="h-7 text-xs"
+                      onChange={e => {
+                        const price = Number(e.target.value) || 0;
+                        setEditItems(prev => prev.map((it, idx) => idx === i ? { ...it, price } : it));
+                      }} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-muted-foreground">GST %</label>
+                    <Input type="number" value={item.gstPercent} className="h-7 text-xs"
+                      onChange={e => {
+                        const gst = Number(e.target.value) || 0;
+                        setEditItems(prev => prev.map((it, idx) => idx === i ? { ...it, gstPercent: gst } : it));
+                      }} />
+                  </div>
+                </div>
+                <div className="text-xs text-muted-foreground text-right">
+                  Amount: ₹{(item.price * item.quantity).toLocaleString('en-IN')} + GST ₹{(item.price * item.quantity * item.gstPercent / 100).toFixed(2)}
+                </div>
               </div>
-              <div className="space-y-2">
-                {(['paid', 'pending', 'partial'] as const).map(s => (
-                  <Button key={s} variant={showStatusModal.status === s ? 'default' : 'outline'} className="w-full justify-start"
-                    onClick={() => handleStatusChange(showStatusModal, s)}>
-                    {s === 'paid' ? '🟢 Paid' : s === 'partial' ? '🟡 Partial' : '🔴 Pending'}
+            ))}
+          </div>
+          {editItems.length > 0 && (
+            <div className="mt-3 text-right text-sm">
+              {(() => {
+                const calcs = recalcInvoice(editItems, editInvoice);
+                return (
+                  <div className="space-y-0.5">
+                    <p className="text-muted-foreground">Subtotal: ₹{calcs.totalAmount?.toLocaleString('en-IN')}</p>
+                    <p className="text-muted-foreground">GST: ₹{calcs.totalGst?.toLocaleString('en-IN')}</p>
+                    <p className="font-bold text-foreground">Grand Total: ₹{calcs.grandTotal?.toLocaleString('en-IN')}</p>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+          <div className="flex gap-2 mt-4">
+            <Button className="flex-1" onClick={saveEdit} disabled={editItems.length === 0}>✅ Save Changes</Button>
+            <Button variant="outline" className="flex-1" onClick={() => setEditInvoice(null)}>Cancel</Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderPaymentModal() {
+    if (!paymentModal) return null;
+    const remaining = paymentModal.grandTotal - (paymentModal.paidAmount || 0);
+    return (
+      <div className="fixed inset-0 bg-foreground/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="glass-card w-full max-w-sm p-6 animate-fade-in">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-semibold text-foreground">💰 Payment Add — {paymentModal.invoiceNumber}</h3>
+            <Button variant="ghost" size="sm" onClick={() => setPaymentModal(null)}><X className="w-4 h-4" /></Button>
+          </div>
+          <div className="space-y-3">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Grand Total:</span>
+              <span className="text-foreground font-medium">₹{paymentModal.grandTotal.toLocaleString('en-IN')}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Already Paid:</span>
+              <span className="text-foreground">₹{(paymentModal.paidAmount || 0).toLocaleString('en-IN')}</span>
+            </div>
+            <div className="flex justify-between text-sm font-bold">
+              <span className="text-muted-foreground">Baaki:</span>
+              <span className="text-destructive">₹{remaining.toLocaleString('en-IN')}</span>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Amount (₹)</label>
+              <Input type="number" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)}
+                placeholder={`Max ₹${remaining.toLocaleString('en-IN')}`} className="h-9" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Payment Mode</label>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {(['Cash', 'UPI', 'Bank Transfer', 'RTGS', 'Cheque'] as const).map(mode => (
+                  <Button key={mode} size="sm" variant={paymentMode === mode ? 'default' : 'outline'} className="text-xs h-8"
+                    onClick={() => setPaymentMode(mode)}>
+                    {mode === 'Cash' ? '💵' : mode === 'UPI' ? '📱' : mode === 'Cheque' ? '📝' : '🏦'} {mode}
                   </Button>
                 ))}
               </div>
             </div>
+            <Button className="w-full" onClick={handleAddPayment}
+              disabled={!paymentAmount || Number(paymentAmount) <= 0}>
+              ✅ Payment Save Karo
+            </Button>
           </div>
-        )}
+        </div>
       </div>
     );
   }
@@ -239,12 +521,11 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
               <th className="text-left py-2.5 px-3">Invoice No</th>
               <th className="text-left py-2.5 px-3">Date</th>
               <th className="text-left py-2.5 px-3">Customer</th>
-              <th className="text-center py-2.5 px-3">Items</th>
-              <th className="text-right py-2.5 px-3">Subtotal</th>
-              <th className="text-right py-2.5 px-3">GST</th>
               <th className="text-right py-2.5 px-3">Total</th>
+              <th className="text-right py-2.5 px-3">Paid</th>
+              <th className="text-right py-2.5 px-3">Baaki</th>
               <th className="text-center py-2.5 px-3">Status</th>
-              <th className="text-left py-2.5 px-3">Banaya Kisne</th>
+              <th className="text-left py-2.5 px-3">Banaya</th>
               <th className="text-left py-2.5 px-3">Actions</th>
             </tr></thead>
             <tbody>
@@ -254,25 +535,29 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
                   <td className="py-2.5 px-3 font-medium text-foreground">{inv.invoiceNumber}</td>
                   <td className="py-2.5 px-3 text-muted-foreground text-xs">{formatDate(inv.date)}</td>
                   <td className="py-2.5 px-3 text-foreground">{inv.customerName}</td>
-                  <td className="py-2.5 px-3 text-center text-muted-foreground">{inv.items.length}</td>
-                  <td className="py-2.5 px-3 text-right text-muted-foreground">₹{inv.totalAmount.toLocaleString('en-IN')}</td>
-                  <td className="py-2.5 px-3 text-right text-muted-foreground">₹{inv.totalGst.toLocaleString('en-IN')}</td>
                   <td className="py-2.5 px-3 text-right font-medium text-foreground">₹{inv.grandTotal.toLocaleString('en-IN')}</td>
+                  <td className="py-2.5 px-3 text-right text-sm text-foreground">₹{(inv.paidAmount || 0).toLocaleString('en-IN')}</td>
+                  <td className="py-2.5 px-3 text-right text-sm text-destructive">₹{Math.max(0, inv.grandTotal - (inv.paidAmount || 0)).toLocaleString('en-IN')}</td>
                   <td className="py-2.5 px-3 text-center">
                     <span className={inv.status === 'paid' ? 'badge-success' : inv.status === 'partial' ? 'badge-warning' : 'badge-critical'}>
-                      {inv.status === 'paid' ? '🟢 Paid' : inv.status === 'partial' ? '🟡 Partial' : '🔴 Pending'}
+                      {inv.status === 'paid' ? '🟢' : inv.status === 'partial' ? '🟡' : '🔴'}
                     </span>
                   </td>
                   <td className="py-2.5 px-3">
-                    <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${inv.createdBy.role === 'user' ? 'bg-primary/10 text-primary' : 'bg-accent/20 text-accent-foreground'}`}
-                      title={`${inv.createdBy.name} • ${inv.createdBy.timestamp ? new Date(inv.createdBy.timestamp).toLocaleString('hi-IN') : ''}`}>
+                    <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${inv.createdBy.role === 'user' ? 'bg-primary/10 text-primary' : 'bg-accent/20 text-accent-foreground'}`}>
                       {inv.createdBy.role === 'user' ? '👑' : '👷'} {inv.createdBy.name}
                     </span>
                   </td>
                   <td className="py-2.5 px-3">
                     <div className="flex gap-1">
                       <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => setViewInvoice(inv)}>👁️</Button>
-                      {!readOnly && <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => setShowStatusModal(inv)}>✏️</Button>}
+                      {!readOnly && (
+                        <>
+                          <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => startEdit(inv)}><Pencil className="w-3 h-3" /></Button>
+                          <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => setPaymentModal(inv)}>💰</Button>
+                          <Button size="sm" variant="ghost" className="text-xs h-7 text-destructive" onClick={() => setDeleteConfirm(inv)}><Trash2 className="w-3 h-3" /></Button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -291,25 +576,11 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
         <span className="text-muted-foreground">Pending: <span className="font-bold text-critical">₹{pendingAmount.toLocaleString('en-IN')}</span></span>
       </div>
 
-      {/* Status Change Modal */}
-      {showStatusModal && (
-        <div className="fixed inset-0 bg-foreground/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass-card w-full max-w-sm p-6 animate-fade-in">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-semibold text-foreground">Status Badlo — {showStatusModal.invoiceNumber}</h3>
-              <Button variant="ghost" size="sm" onClick={() => setShowStatusModal(null)}><X className="w-4 h-4" /></Button>
-            </div>
-            <div className="space-y-2">
-              {(['paid', 'pending', 'partial'] as const).map(s => (
-                <Button key={s} variant={showStatusModal.status === s ? 'default' : 'outline'} className="w-full justify-start"
-                  onClick={() => handleStatusChange(showStatusModal, s)}>
-                  {s === 'paid' ? '🟢 Paid' : s === 'partial' ? '🟡 Partial' : '🔴 Pending'}
-                </Button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* All Modals */}
+      {renderStatusModal()}
+      {renderDeleteModal()}
+      {renderEditModal()}
+      {renderPaymentModal()}
     </div>
   );
 }

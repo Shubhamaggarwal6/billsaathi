@@ -6,7 +6,7 @@ import { printGSTInvoice } from '@/lib/invoicePrint';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Printer, Pencil, Trash2, RotateCcw, Home } from 'lucide-react';
-import type { Customer, Product, InvoiceItem, Invoice } from '@/lib/types';
+import type { Customer, Product, InvoiceItem, Invoice, Payment } from '@/lib/types';
 
 type Step =
   | 'start'
@@ -28,6 +28,10 @@ type Step =
   | 'new-product-unit'
   | 'more-products'
   | 'preview'
+  | 'payment-ask'
+  | 'payment-mode'
+  | 'payment-partial-amount'
+  | 'payment-partial-mode'
   | 'done';
 
 interface Message {
@@ -37,7 +41,7 @@ interface Message {
 }
 
 export default function ChatbotInvoice() {
-  const { currentUser, users, customers, products, invoices, setCustomers, setProducts, setInvoices } = useApp();
+  const { currentUser, users, customers, products, invoices, payments, setCustomers, setProducts, setInvoices, setPayments } = useApp();
   const [messages, setMessages] = useState<Message[]>([
     { from: 'bot', text: '🙏 Namaskar! Naya invoice banayein?\nCustomer naya hai ya purana?', options: ['Purana Customer', 'Naya Customer'] }
   ]);
@@ -51,6 +55,7 @@ export default function ChatbotInvoice() {
   const [newProd, setNewProd] = useState({ name: '', hsn: '', price: 0, gstPercent: 18, unit: 'Piece' });
   const [showInvoice, setShowInvoice] = useState(false);
   const [suggestions, setSuggestions] = useState<(Customer | Product)[]>([]);
+  const [lastCreatedInvoiceId, setLastCreatedInvoiceId] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -306,6 +311,15 @@ export default function ChatbotInvoice() {
         setStep('product-selling-price');
         break;
       }
+      case 'payment-partial-amount': {
+        const amt = Number(text);
+        if (isNaN(amt) || amt <= 0) { addMsg('bot', 'Sahi amount daalein!'); return; }
+        // Store partial amount temporarily
+        setCurrentItem(prev => ({ ...prev, price: amt } as any));
+        addMsg('bot', `₹${amt.toLocaleString('en-IN')} payment — kis tarike se mila?`, ['💵 Cash', '📱 UPI', '🏦 Bank Transfer', '🏦 RTGS', '📝 Cheque']);
+        setStep('payment-partial-mode');
+        break;
+      }
     }
   };
 
@@ -334,6 +348,21 @@ export default function ChatbotInvoice() {
       if (opt === '📋 Nayi Invoice Banao') resetChat();
       return;
     }
+
+    // Payment flow options
+    if (step === 'payment-ask') {
+      handlePaymentAsk(opt);
+      return;
+    }
+    if (step === 'payment-mode') {
+      handlePaymentMode(opt);
+      return;
+    }
+    if (step === 'payment-partial-mode') {
+      handlePartialPaymentMode(opt);
+      return;
+    }
+
     if (opt === 'Naya Customer') {
       addMsg('bot', 'Naye customer ka naam batayein:');
       setStep('new-customer-name');
@@ -461,7 +490,6 @@ export default function ChatbotInvoice() {
       const totalAmount = items.reduce((s, i) => s + i.price * i.quantity, 0);
       const totalGst = items.reduce((s, i) => s + (i.price * i.quantity * i.gstPercent) / 100, 0);
 
-      // Determine inter/intra state
       const firmUser = currentUser?.role === 'employee'
         ? users.find(u => u.id === currentUser.parentUserId)
         : currentUser;
@@ -479,8 +507,9 @@ export default function ChatbotInvoice() {
       const sellerState = getStateFromGST(firmUser?.gstNumber || '');
 
       const invNum = `${firmUser?.firmSettings?.invoicePrefix || 'INV'}-${new Date().getFullYear()}-${String(invoices.filter(i => i.userId === userId).length + 1).padStart(4, '0')}`;
+      const invId = 'inv_' + Date.now();
       const invoice: Invoice = {
-        id: 'inv_' + Date.now(),
+        id: invId,
         userId,
         invoiceNumber: invNum,
         date: new Date().toISOString().split('T')[0],
@@ -501,7 +530,8 @@ export default function ChatbotInvoice() {
         roundOff,
         isInterState,
         placeOfSupply: buyerState?.name || selectedCustomer?.state || sellerState?.name || '',
-        status: 'pending' as const,
+        status: 'pending',
+        paidAmount: 0,
         createdBy: {
           id: currentUser!.id,
           name: currentUser!.role === 'employee'
@@ -516,12 +546,95 @@ export default function ChatbotInvoice() {
         const item = items.find(i => i.productId === p.id);
         return item ? { ...p, stock: Math.max(0, p.stock - item.quantity) } : p;
       }));
-      addMsg('bot', `🎉 Invoice ban gayi! Invoice no: ${invNum}\nGrand Total: ₹${(totalAmount + totalGst).toLocaleString('en-IN')}`, ['🖨️ Print Karein', '📋 Nayi Invoice Banao']);
+      setLastCreatedInvoiceId(invId);
+      addMsg('bot', `🎉 Invoice ban gayi! Invoice No: ${invNum}\nGrand Total: ₹${grandTotal.toLocaleString('en-IN')}\n\n💰 Payment mila hai?`, [
+        '✅ Poora Mila (Full Paid)',
+        '🟡 Thoda Mila (Partial)',
+        '🔴 Abhi Nahi (Credit/Pending)',
+      ]);
       setShowInvoice(true);
-      setStep('done');
+      setStep('payment-ask');
     } else {
       handleOptionClick(opt);
     }
+  };
+
+  const handlePaymentAsk = (opt: string) => {
+    if (opt === '✅ Poora Mila (Full Paid)') {
+      addMsg('bot', '💰 Kis tarike se mila?', ['💵 Cash', '📱 UPI', '🏦 Bank Transfer', '🏦 RTGS', '📝 Cheque']);
+      setStep('payment-mode');
+    } else if (opt === '🟡 Thoda Mila (Partial)') {
+      const inv = invoices.find(i => i.id === lastCreatedInvoiceId) || invoices[invoices.length - 1];
+      addMsg('bot', `Grand Total: ₹${inv?.grandTotal?.toLocaleString('en-IN') || '0'}\nKitna mila hai (₹)?`);
+      setStep('payment-partial-amount');
+    } else if (opt === '🔴 Abhi Nahi (Credit/Pending)') {
+      // Keep as pending
+      addMsg('bot', '✅ Invoice pending / credit mein save ho gayi.', ['🖨️ Print Karein', '📋 Nayi Invoice Banao']);
+      setStep('done');
+    }
+  };
+
+  const handlePaymentMode = (opt: string) => {
+    const modeMap: Record<string, Payment['mode']> = {
+      '💵 Cash': 'Cash',
+      '📱 UPI': 'UPI',
+      '🏦 Bank Transfer': 'Bank Transfer',
+      '🏦 RTGS': 'RTGS',
+      '📝 Cheque': 'Cheque',
+    };
+    const mode = modeMap[opt] || 'Cash';
+    const inv = invoices.find(i => i.id === lastCreatedInvoiceId) || invoices[invoices.length - 1];
+    if (inv) {
+      const payment: Payment = {
+        id: 'pay_' + Date.now(),
+        userId,
+        customerId: inv.customerId,
+        invoiceId: inv.id,
+        amount: inv.grandTotal,
+        date: new Date().toISOString().split('T')[0],
+        mode,
+        note: `Full payment for ${inv.invoiceNumber}`,
+        timestamp: new Date().toISOString(),
+      };
+      setPayments(prev => [...prev, payment]);
+      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'paid' as const, paidAmount: inv.grandTotal } : i));
+    }
+    addMsg('bot', `✅ ₹${inv?.grandTotal?.toLocaleString('en-IN')} ${mode} se receive ho gaya!\nInvoice status: 🟢 Paid`, ['🖨️ Print Karein', '📋 Nayi Invoice Banao']);
+    setStep('done');
+  };
+
+  const handlePartialPaymentMode = (opt: string) => {
+    const modeMap: Record<string, Payment['mode']> = {
+      '💵 Cash': 'Cash',
+      '📱 UPI': 'UPI',
+      '🏦 Bank Transfer': 'Bank Transfer',
+      '🏦 RTGS': 'RTGS',
+      '📝 Cheque': 'Cheque',
+    };
+    const mode = modeMap[opt] || 'Cash';
+    const partialAmt = (currentItem as any)?.price || 0;
+    const inv = invoices.find(i => i.id === lastCreatedInvoiceId) || invoices[invoices.length - 1];
+    if (inv) {
+      const payment: Payment = {
+        id: 'pay_' + Date.now(),
+        userId,
+        customerId: inv.customerId,
+        invoiceId: inv.id,
+        amount: partialAmt,
+        date: new Date().toISOString().split('T')[0],
+        mode,
+        note: `Partial payment for ${inv.invoiceNumber}`,
+        timestamp: new Date().toISOString(),
+      };
+      setPayments(prev => [...prev, payment]);
+      const newPaid = (inv.paidAmount || 0) + partialAmt;
+      const newStatus = newPaid >= inv.grandTotal ? 'paid' as const : 'partial' as const;
+      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: newStatus, paidAmount: newPaid } : i));
+      const remaining = inv.grandTotal - newPaid;
+      addMsg('bot', `✅ ₹${partialAmt.toLocaleString('en-IN')} ${mode} se receive ho gaya!\nPaid: ₹${newPaid.toLocaleString('en-IN')} | Baaki: ₹${remaining.toLocaleString('en-IN')}\nInvoice status: ${newStatus === 'paid' ? '🟢 Paid' : '🟡 Partial'}`, ['🖨️ Print Karein', '📋 Nayi Invoice Banao']);
+    }
+    setCurrentItem({});
+    setStep('done');
   };
 
   const resetChat = () => {
@@ -536,10 +649,13 @@ export default function ChatbotInvoice() {
     setSuggestions([]);
     setEditTarget(null);
     setReturnStep(null);
+    setLastCreatedInvoiceId(null);
   };
 
   const printInvoice = () => {
-    const inv = invoices[invoices.length - 1];
+    const inv = lastCreatedInvoiceId
+      ? invoices.find(i => i.id === lastCreatedInvoiceId)
+      : invoices[invoices.length - 1];
     if (!inv) return;
     const firm = currentUser?.role === 'employee'
       ? users.find(u => u.id === currentUser.parentUserId)
@@ -564,12 +680,14 @@ export default function ChatbotInvoice() {
       case 'new-product-price': return 'MRP / Price ₹...';
       case 'new-product-gst': return 'GST % (default 18)';
       case 'new-product-unit': return 'Unit (Piece/Kg/Box...)';
+      case 'payment-partial-amount': return 'Amount ₹ likhein...';
       default: return 'Type karein...';
     }
   };
 
   const hasSummaryData = selectedCustomer || vehicle || items.length > 0;
   const showSummary = hasSummaryData && step !== 'start' && step !== 'done';
+  const showInput = !['done', 'start', 'confirm-customer', 'more-products', 'preview', 'payment-ask', 'payment-mode', 'payment-partial-mode'].includes(step);
 
   return (
     <div className="animate-fade-in h-full flex flex-col">
@@ -695,7 +813,7 @@ export default function ChatbotInvoice() {
         )}
 
         {/* Input */}
-        {step !== 'done' && step !== 'start' && step !== 'confirm-customer' && step !== 'more-products' && step !== 'preview' && (
+        {showInput && (
           <div className="border-t p-3 flex gap-2">
             <Input
               ref={inputRef}
