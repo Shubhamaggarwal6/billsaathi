@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { numberToWords } from '@/lib/subscription';
+import { getStateFromGST } from '@/lib/types';
+import { printGSTInvoice } from '@/lib/invoicePrint';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Printer, Pencil, Trash2, RotateCcw, Home } from 'lucide-react';
-import type { Customer, Product, InvoiceItem } from '@/lib/types';
+import type { Customer, Product, InvoiceItem, Invoice } from '@/lib/types';
 
 type Step =
   | 'start'
@@ -458,8 +460,26 @@ export default function ChatbotInvoice() {
       }
       const totalAmount = items.reduce((s, i) => s + i.price * i.quantity, 0);
       const totalGst = items.reduce((s, i) => s + (i.price * i.quantity * i.gstPercent) / 100, 0);
-      const invNum = `INV-${Date.now().toString().slice(-6)}`;
-      const invoice = {
+
+      // Determine inter/intra state
+      const firmUser = currentUser?.role === 'employee'
+        ? users.find(u => u.id === currentUser.parentUserId)
+        : currentUser;
+      const sellerStateCode = firmUser?.firmSettings?.stateCode || firmUser?.gstNumber?.substring(0, 2) || '';
+      const buyerStateCode = selectedCustomer?.stateCode || (selectedCustomer?.gstNumber ? selectedCustomer.gstNumber.substring(0, 2) : sellerStateCode);
+      const isInterState = sellerStateCode !== buyerStateCode;
+      const totalCgst = isInterState ? 0 : totalGst / 2;
+      const totalSgst = isInterState ? 0 : totalGst / 2;
+      const totalIgst = isInterState ? totalGst : 0;
+      const rawGrand = totalAmount + totalGst;
+      const grandTotal = Math.round(rawGrand);
+      const roundOff = Math.round((grandTotal - rawGrand) * 100) / 100;
+
+      const buyerState = getStateFromGST(selectedCustomer?.gstNumber || '');
+      const sellerState = getStateFromGST(firmUser?.gstNumber || '');
+
+      const invNum = `${firmUser?.firmSettings?.invoicePrefix || 'INV'}-${new Date().getFullYear()}-${String(invoices.filter(i => i.userId === userId).length + 1).padStart(4, '0')}`;
+      const invoice: Invoice = {
         id: 'inv_' + Date.now(),
         userId,
         invoiceNumber: invNum,
@@ -468,11 +488,19 @@ export default function ChatbotInvoice() {
         customerName: selectedCustomer!.name,
         customerGst: selectedCustomer!.gstNumber,
         customerAddress: selectedCustomer!.address,
+        customerState: buyerState?.name || selectedCustomer?.state || '',
+        customerStateCode: buyerStateCode,
         vehicleNumber: vehicle,
         items,
         totalAmount,
         totalGst,
-        grandTotal: totalAmount + totalGst,
+        totalCgst,
+        totalSgst,
+        totalIgst,
+        grandTotal,
+        roundOff,
+        isInterState,
+        placeOfSupply: buyerState?.name || selectedCustomer?.state || sellerState?.name || '',
         status: 'pending' as const,
         createdBy: {
           id: currentUser!.id,
@@ -516,36 +544,7 @@ export default function ChatbotInvoice() {
     const firm = currentUser?.role === 'employee'
       ? users.find(u => u.id === currentUser.parentUserId)
       : currentUser;
-
-    const printContent = `
-      <html><head><title>Invoice ${inv.invoiceNumber}</title>
-      <style>body{font-family:Arial;padding:20px;font-size:12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #333;padding:6px;text-align:left}th{background:#1a237e;color:white}.header{text-align:center;margin-bottom:20px}.total{font-weight:bold;font-size:14px}.discount{color:#e53e3e;font-size:10px}</style></head>
-      <body>
-        <div class="header">
-          <h2>${firm?.firmName || ''}</h2>
-          <p>GST: ${firm?.gstNumber || 'N/A'}</p>
-        </div>
-        <p><strong>Invoice:</strong> ${inv.invoiceNumber} | <strong>Date:</strong> ${inv.date}</p>
-        <p><strong>Customer:</strong> ${inv.customerName} | <strong>GST:</strong> ${inv.customerGst || 'N/A'}</p>
-        <p><strong>Address:</strong> ${inv.customerAddress}</p>
-        ${inv.vehicleNumber ? `<p><strong>Vehicle:</strong> ${inv.vehicleNumber}</p>` : ''}
-        <table>
-          <tr><th>#</th><th>Product</th><th>HSN</th><th>Qty</th><th>MRP</th><th>Rate</th><th>Disc%</th><th>Amount</th><th>GST%</th><th>GST Amt</th><th>Total</th></tr>
-          ${inv.items.map((item, i) => {
-      const amt = item.price * item.quantity;
-      const gst = amt * item.gstPercent / 100;
-      const mrp = item.mrp || item.price;
-      const discPct = mrp > item.price ? Math.round(((mrp - item.price) / mrp) * 100 * 100) / 100 : 0;
-      return `<tr><td>${i + 1}</td><td>${item.productName}</td><td>${item.hsn}</td><td>${item.quantity} ${item.unit}</td><td>₹${mrp}</td><td>₹${item.price}</td><td>${discPct > 0 ? discPct + '%' : '-'}</td><td>₹${amt}</td><td>${item.gstPercent}%</td><td>₹${gst.toFixed(2)}</td><td>₹${(amt + gst).toFixed(2)}</td></tr>`;
-    }).join('')}
-        </table>
-        <p style="margin-top:10px"><strong>Total:</strong> ₹${inv.totalAmount.toLocaleString('en-IN')} | <strong>GST:</strong> ₹${inv.totalGst.toLocaleString('en-IN')}</p>
-        <p class="total">Grand Total: ₹${inv.grandTotal.toLocaleString('en-IN')}</p>
-        <p><em>Amount in words: ${numberToWords(Math.round(inv.grandTotal))} Rupees Only</em></p>
-      </body></html>
-    `;
-    const w = window.open('', '_blank');
-    if (w) { w.document.write(printContent); w.document.close(); w.print(); }
+    printGSTInvoice(inv, firm);
   };
 
   const getPlaceholder = (): string => {

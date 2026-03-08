@@ -10,12 +10,13 @@ import ReportsPanel from '@/components/ReportsPanel';
 import EmployeeManager from '@/components/EmployeeManager';
 import SettingsPanel from '@/components/SettingsPanel';
 import InvoiceList from '@/components/InvoiceList';
+import PurchaseRegister from '@/components/PurchaseRegister';
 import {
   LayoutDashboard, MessageSquare, Users, Package, BarChart3,
-  UserPlus, Settings, LogOut, FileText, AlertTriangle, ClipboardList
+  UserPlus, Settings, LogOut, FileText, AlertTriangle, ClipboardList, ShoppingCart
 } from 'lucide-react';
 
-type Tab = 'dashboard' | 'chatbot' | 'invoices' | 'customers' | 'products' | 'reports' | 'employees' | 'settings';
+type Tab = 'dashboard' | 'chatbot' | 'invoices' | 'customers' | 'products' | 'reports' | 'employees' | 'settings' | 'purchases';
 
 export default function UserDashboard() {
   const { currentUser, users, invoices, products, customers, setCurrentUser } = useApp();
@@ -37,6 +38,7 @@ export default function UserDashboard() {
     { id: 'invoices', label: 'Invoices', icon: <ClipboardList className="w-4 h-4" /> },
     { id: 'customers', label: 'Customers', icon: <Users className="w-4 h-4" /> },
     { id: 'products', label: 'Products', icon: <Package className="w-4 h-4" /> },
+    { id: 'purchases', label: 'Purchases', icon: <ShoppingCart className="w-4 h-4" /> },
     { id: 'reports', label: 'Reports', icon: <BarChart3 className="w-4 h-4" /> },
     { id: 'employees', label: 'Employees', icon: <UserPlus className="w-4 h-4" /> },
     { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> },
@@ -176,6 +178,7 @@ export default function UserDashboard() {
           {activeTab === 'customers' && <CustomerManager />}
           {activeTab === 'products' && <ProductManager />}
           {activeTab === 'reports' && <ReportsPanel />}
+          {activeTab === 'purchases' && <PurchaseRegister />}
           {activeTab === 'employees' && <EmployeeManager />}
           {activeTab === 'settings' && <SettingsPanel />}
         </main>
