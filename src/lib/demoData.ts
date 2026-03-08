@@ -115,7 +115,7 @@ export const initialInvoices: Invoice[] = [
     ],
     totalAmount: 15600, totalGst: 2808, totalCgst: 1404, totalSgst: 1404, totalIgst: 0,
     grandTotal: 18408, roundOff: 0, isInterState: false, placeOfSupply: 'Maharashtra',
-    status: 'partial',
+    status: 'partial', paidAmount: 10000,
     createdBy: { id: 'emp1', name: 'Mohan', role: 'employee', timestamp: daysAgoISO(5) },
   },
 ];
