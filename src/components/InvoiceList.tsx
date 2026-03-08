@@ -286,7 +286,8 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId, 
                   <td className="py-2.5 px-3">
                     <div className="flex gap-1">
                       <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => setViewInvoice(inv)}>👁️</Button>
-                      {!readOnly && <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => setShowStatusModal(inv)}>✏️</Button>}
+                      {canEditDelete && <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => setShowStatusModal(inv)}>✏️</Button>}
+                      {canEditDelete && <Button size="sm" variant="ghost" className="text-xs h-7 text-destructive" onClick={() => handleDeleteInvoice(inv)}>🗑️</Button>}
                     </div>
                   </td>
                 </tr>
