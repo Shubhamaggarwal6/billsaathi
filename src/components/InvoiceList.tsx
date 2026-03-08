@@ -567,8 +567,8 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
             </tr></thead>
             <tbody>
               {filtered.map((inv, idx) => (
-                <tr key={inv.id} className="border-b hover:bg-muted/30 transition-colors">
-                  <td className="py-2.5 px-2">
+                <tr key={inv.id} className="border-b hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => setViewInvoice(inv)}>
+                  <td className="py-2.5 px-2" onClick={e => e.stopPropagation()}>
                     <Checkbox checked={selectedIds.has(inv.id)} onCheckedChange={(checked) => {
                       setSelectedIds(prev => { const next = new Set(prev); if (checked) next.add(inv.id); else next.delete(inv.id); return next; });
                     }} />
@@ -590,7 +590,7 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
                       {inv.createdBy.role === 'user' ? '👑' : '👷'} {inv.createdBy.name}
                     </span>
                   </td>
-                  <td className="py-2.5 px-3">
+                  <td className="py-2.5 px-3" onClick={e => e.stopPropagation()}>
                     <div className="flex gap-1">
                       <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => setViewInvoice(inv)}>👁️</Button>
                       {!readOnly && (
