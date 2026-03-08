@@ -14,6 +14,7 @@ export default function AdminDashboard() {
   const { users, invoices, setUsers, setCurrentUser } = useApp();
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [showRenew, setShowRenew] = useState<string | null>(null);
+  const [viewUser, setViewUser] = useState<User | null>(null);
   const [renewDuration, setRenewDuration] = useState<SubscriptionDuration>('1month');
   const [renewCustomDate, setRenewCustomDate] = useState('');
 
