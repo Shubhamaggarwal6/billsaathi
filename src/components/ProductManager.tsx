@@ -2,16 +2,33 @@ import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, X, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Search, X, Pencil, Trash2, Upload } from 'lucide-react';
+import BulkImportDialog from '@/components/BulkImportDialog';
 
 interface Props {
   stockOnly?: boolean;
 }
 
+const PRODUCT_COLUMNS = [
+  { key: 'name', label: 'Product Name', required: true, type: 'string' as const },
+  { key: 'hsn', label: 'HSN Code', type: 'string' as const, defaultValue: '' },
+  { key: 'price', label: 'Price', required: true, type: 'number' as const },
+  { key: 'gstPercent', label: 'GST %', type: 'number' as const, defaultValue: 18 },
+  { key: 'unit', label: 'Unit', type: 'string' as const, defaultValue: 'Piece' },
+  { key: 'stock', label: 'Stock', type: 'number' as const, defaultValue: 0 },
+  { key: 'lowStockThreshold', label: 'Low Stock Alert', type: 'number' as const, defaultValue: 5 },
+];
+
+const PRODUCT_SAMPLE = [
+  { name: 'Cement Bag 50kg', hsn: '2523', price: 380, gstPercent: 28, unit: 'Bag', stock: 100, lowStockThreshold: 20 },
+  { name: 'TMT Bar 12mm', hsn: '7214', price: 55, gstPercent: 18, unit: 'Kg', stock: 500, lowStockThreshold: 50 },
+];
+
 export default function ProductManager({ stockOnly }: Props) {
   const { currentUser, products, setProducts } = useApp();
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
+  const [showBulk, setShowBulk] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', hsn: '', price: 0, gstPercent: 18, unit: 'Piece', stock: 0, lowStockThreshold: 5 });
 
