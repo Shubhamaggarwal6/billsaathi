@@ -524,13 +524,36 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
         </div>
       </div>
 
-      <p className="text-xs text-muted-foreground">{filtered.length} invoices mili</p>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <p className="text-xs text-muted-foreground">{filtered.length} invoices mili</p>
+        <div className="flex gap-2 flex-wrap">
+          {selectedIds.size > 0 && (
+            <>
+              <span className="text-xs text-primary font-medium self-center">{selectedIds.size} selected</span>
+              <Button size="sm" variant="outline" className="text-xs h-7 bg-green-500/10 text-green-600 border-green-500/20" onClick={() => {
+                const sel = filtered.filter(i => selectedIds.has(i.id));
+                downloadBulkInvoiceExcel(sel, dateFrom && dateTo ? `${dateFrom}_to_${dateTo}` : undefined);
+              }}><FileSpreadsheet className="w-3 h-3 mr-1" /> Export Excel</Button>
+            </>
+          )}
+          <Button size="sm" variant="outline" className="text-xs h-7 bg-green-500/10 text-green-600 border-green-500/20" onClick={() => downloadBulkInvoiceExcel(filtered)}>
+            <Download className="w-3 h-3 mr-1" /> All Excel
+          </Button>
+        </div>
+      </div>
 
       {/* Invoice Table */}
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="border-b text-muted-foreground bg-muted/30">
+              <th className="py-2.5 px-2 w-8">
+                <Checkbox checked={selectedIds.size === filtered.length && filtered.length > 0}
+                  onCheckedChange={(checked) => {
+                    if (checked) setSelectedIds(new Set(filtered.map(i => i.id)));
+                    else setSelectedIds(new Set());
+                  }} />
+              </th>
               <th className="text-left py-2.5 px-3">#</th>
               <th className="text-left py-2.5 px-3">Invoice No</th>
               <th className="text-left py-2.5 px-3">Date</th>
