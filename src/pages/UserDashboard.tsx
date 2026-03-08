@@ -1,9 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { getSubscriptionStatus, formatDate, numberToWords } from '@/lib/subscription';
+import { getSubscriptionStatus, formatDate } from '@/lib/subscription';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import SubscriptionBadge from '@/components/SubscriptionBadge';
 import ChatbotInvoice from '@/components/ChatbotInvoice';
 import CustomerManager from '@/components/CustomerManager';
@@ -11,12 +9,13 @@ import ProductManager from '@/components/ProductManager';
 import ReportsPanel from '@/components/ReportsPanel';
 import EmployeeManager from '@/components/EmployeeManager';
 import SettingsPanel from '@/components/SettingsPanel';
+import InvoiceList from '@/components/InvoiceList';
 import {
   LayoutDashboard, MessageSquare, Users, Package, BarChart3,
-  UserPlus, Settings, LogOut, FileText, AlertTriangle, IndianRupee
+  UserPlus, Settings, LogOut, FileText, AlertTriangle, ClipboardList
 } from 'lucide-react';
 
-type Tab = 'dashboard' | 'invoice' | 'customers' | 'products' | 'reports' | 'employees' | 'settings';
+type Tab = 'dashboard' | 'chatbot' | 'invoices' | 'customers' | 'products' | 'reports' | 'employees' | 'settings';
 
 export default function UserDashboard() {
   const { currentUser, users, invoices, products, customers, setCurrentUser } = useApp();
@@ -27,16 +26,15 @@ export default function UserDashboard() {
   const sub = getSubscriptionStatus(currentUser.subscriptionEnd);
   const myInvoices = invoices.filter(i => i.userId === currentUser.id);
   const myProducts = products.filter(p => p.userId === currentUser.id);
-  const myCustomers = customers.filter(c => c.userId === currentUser.id);
   const todaySales = myInvoices.filter(i => i.date === new Date().toISOString().split('T')[0]).reduce((s, i) => s + i.grandTotal, 0);
-  const totalPending = myInvoices.filter(i => i.status === 'pending').reduce((s, i) => s + i.grandTotal, 0);
+  const totalPending = myInvoices.filter(i => i.status !== 'paid').reduce((s, i) => s + i.grandTotal, 0);
   const totalRevenue = myInvoices.reduce((s, i) => s + i.grandTotal, 0);
   const lowStockProducts = myProducts.filter(p => p.stock <= p.lowStockThreshold);
-  const myEmployees = users.filter(u => u.parentUserId === currentUser.id);
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
-    { id: 'invoice', label: 'Invoice Banao', icon: <MessageSquare className="w-4 h-4" /> },
+    { id: 'chatbot', label: 'Invoice Banao', icon: <MessageSquare className="w-4 h-4" /> },
+    { id: 'invoices', label: 'Invoices', icon: <ClipboardList className="w-4 h-4" /> },
     { id: 'customers', label: 'Customers', icon: <Users className="w-4 h-4" /> },
     { id: 'products', label: 'Products', icon: <Package className="w-4 h-4" /> },
     { id: 'reports', label: 'Reports', icon: <BarChart3 className="w-4 h-4" /> },
@@ -92,7 +90,6 @@ export default function UserDashboard() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Warning Banner */}
         {sub.status === 'critical' && (
           <div className="bg-warning/10 border-b border-warning/20 px-6 py-2.5 flex items-center gap-2 text-sm">
             <AlertTriangle className="w-4 h-4 text-warning" />
@@ -123,7 +120,6 @@ export default function UserDashboard() {
                 </div>
               </div>
 
-              {/* Subscription Card */}
               <div className="glass-card p-5">
                 <h3 className="text-sm font-semibold text-foreground mb-2">Subscription Details</h3>
                 <div className="flex items-center gap-4 flex-wrap">
@@ -133,7 +129,6 @@ export default function UserDashboard() {
                 </div>
               </div>
 
-              {/* Recent Invoices */}
               <div className="glass-card p-5">
                 <h3 className="text-sm font-semibold text-foreground mb-3">Recent Invoices</h3>
                 {myInvoices.length === 0 ? (
@@ -148,7 +143,9 @@ export default function UserDashboard() {
                         </div>
                         <div className="text-right">
                           <p className="text-sm font-medium text-foreground">₹{inv.grandTotal.toLocaleString('en-IN')}</p>
-                          <span className={inv.status === 'paid' ? 'badge-success' : 'badge-warning'}>{inv.status === 'paid' ? 'Paid' : 'Pending'}</span>
+                          <span className={inv.status === 'paid' ? 'badge-success' : inv.status === 'partial' ? 'badge-warning' : 'badge-critical'}>
+                            {inv.status === 'paid' ? 'Paid' : inv.status === 'partial' ? 'Partial' : 'Pending'}
+                          </span>
                         </div>
                       </div>
                     ))}
@@ -156,7 +153,6 @@ export default function UserDashboard() {
                 )}
               </div>
 
-              {/* Low Stock Alerts */}
               {lowStockProducts.length > 0 && (
                 <div className="glass-card p-5">
                   <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
@@ -175,7 +171,8 @@ export default function UserDashboard() {
             </div>
           )}
 
-          {activeTab === 'invoice' && <ChatbotInvoice />}
+          {activeTab === 'chatbot' && <ChatbotInvoice />}
+          {activeTab === 'invoices' && <InvoiceList />}
           {activeTab === 'customers' && <CustomerManager />}
           {activeTab === 'products' && <ProductManager />}
           {activeTab === 'reports' && <ReportsPanel />}
