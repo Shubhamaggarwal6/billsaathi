@@ -64,7 +64,12 @@ export default function ProductManager({ stockOnly }: Props) {
     <div className="animate-fade-in space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-foreground">{stockOnly ? 'Stock Status' : 'Products'}</h2>
-        {!stockOnly && <Button size="sm" onClick={() => { setShowAdd(true); setEditId(null); setForm({ name: '', hsn: '', price: 0, gstPercent: 18, unit: 'Piece', stock: 0, lowStockThreshold: 5 }); }}><Plus className="w-4 h-4 mr-1" /> Product Add</Button>}
+        {!stockOnly && (
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => setShowBulk(true)}><Upload className="w-4 h-4 mr-1" /> Bulk Import</Button>
+            <Button size="sm" onClick={() => { setShowAdd(true); setEditId(null); setForm({ name: '', hsn: '', price: 0, gstPercent: 18, unit: 'Piece', stock: 0, lowStockThreshold: 5 }); }}><Plus className="w-4 h-4 mr-1" /> Product Add</Button>
+          </div>
+        )}
       </div>
 
       <div className="relative">
