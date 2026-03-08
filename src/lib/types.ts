@@ -16,7 +16,7 @@ export interface User {
   subscriptionStart: string;
   subscriptionEnd: string;
   active: boolean;
-  parentUserId?: string; // for employees
+  parentUserId?: string;
   showStockToEmployees: boolean;
 }
 
@@ -27,6 +27,7 @@ export interface Customer {
   phone: string;
   gstNumber: string;
   address: string;
+  createdAt?: string;
 }
 
 export interface Product {
@@ -51,6 +52,13 @@ export interface InvoiceItem {
   unit: string;
 }
 
+export interface InvoiceCreator {
+  id: string;
+  name: string;
+  role: Role;
+  timestamp: string;
+}
+
 export interface Invoice {
   id: string;
   userId: string;
@@ -65,8 +73,19 @@ export interface Invoice {
   totalAmount: number;
   totalGst: number;
   grandTotal: number;
-  status: 'paid' | 'pending';
-  createdBy: string;
+  status: 'paid' | 'pending' | 'partial';
+  createdBy: InvoiceCreator;
+}
+
+export interface Payment {
+  id: string;
+  userId: string;
+  customerId: string;
+  amount: number;
+  date: string;
+  mode: 'Cash' | 'UPI' | 'Bank Transfer' | 'Cheque';
+  note: string;
+  timestamp: string;
 }
 
 export interface SubscriptionStatus {

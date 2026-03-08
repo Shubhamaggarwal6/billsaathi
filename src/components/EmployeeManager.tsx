@@ -4,10 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, X } from 'lucide-react';
 import SubscriptionBadge from '@/components/SubscriptionBadge';
+import InvoiceList from '@/components/InvoiceList';
 
 export default function EmployeeManager() {
-  const { currentUser, users, setUsers } = useApp();
+  const { currentUser, users, invoices, setUsers } = useApp();
   const [showAdd, setShowAdd] = useState(false);
+  const [viewEmployeeInvoices, setViewEmployeeInvoices] = useState<string | null>(null);
   const [form, setForm] = useState({ username: '', password: '', email: '', phone: '' });
 
   if (!currentUser) return null;
@@ -18,21 +20,11 @@ export default function EmployeeManager() {
   const handleAdd = () => {
     if (!form.username || !form.password) return;
     setUsers(prev => [...prev, {
-      id: 'emp_' + Date.now(),
-      username: form.username,
-      password: form.password,
-      role: 'employee' as const,
-      firmName: currentUser.firmName,
-      gstNumber: '',
-      email: form.email,
-      phone: form.phone,
-      plan: currentUser.plan,
-      maxEmployees: 0,
-      subscriptionStart: currentUser.subscriptionStart,
-      subscriptionEnd: currentUser.subscriptionEnd,
-      active: true,
-      parentUserId: currentUser.id,
-      showStockToEmployees: false,
+      id: 'emp_' + Date.now(), username: form.username, password: form.password,
+      role: 'employee' as const, firmName: currentUser.firmName, gstNumber: '',
+      email: form.email, phone: form.phone, plan: currentUser.plan, maxEmployees: 0,
+      subscriptionStart: currentUser.subscriptionStart, subscriptionEnd: currentUser.subscriptionEnd,
+      active: true, parentUserId: currentUser.id, showStockToEmployees: false,
     }]);
     setForm({ username: '', password: '', email: '', phone: '' });
     setShowAdd(false);
@@ -41,6 +33,17 @@ export default function EmployeeManager() {
   const toggleActive = (id: string) => {
     setUsers(prev => prev.map(u => u.id === id ? { ...u, active: !u.active } : u));
   };
+
+  if (viewEmployeeInvoices) {
+    const emp = myEmployees.find(e => e.id === viewEmployeeInvoices);
+    return (
+      <div className="animate-fade-in space-y-4">
+        <Button variant="ghost" size="sm" onClick={() => setViewEmployeeInvoices(null)}>← Wapas</Button>
+        <h2 className="text-lg font-bold text-foreground">👷 {emp?.username} ki Invoices</h2>
+        <InvoiceList filterEmployeeId={viewEmployeeInvoices} />
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in space-y-4">
@@ -53,35 +56,49 @@ export default function EmployeeManager() {
 
       {!canAdd && <p className="text-sm text-warning">Maximum employee limit reach ho gaya hai ({currentUser.maxEmployees})</p>}
 
-      <div className="glass-card overflow-hidden">
-        <table className="w-full text-sm">
-          <thead><tr className="border-b text-muted-foreground bg-muted/30">
-            <th className="text-left py-2.5 px-3">Username</th>
-            <th className="text-left py-2.5 px-3">Email</th>
-            <th className="text-left py-2.5 px-3">Phone</th>
-            <th className="text-left py-2.5 px-3">Status</th>
-            <th className="text-left py-2.5 px-3">Subscription</th>
-            <th className="text-left py-2.5 px-3">Action</th>
-          </tr></thead>
-          <tbody>
-            {myEmployees.map(emp => (
-              <tr key={emp.id} className="border-b hover:bg-muted/30 transition-colors">
-                <td className="py-2.5 px-3 font-medium text-foreground">{emp.username}</td>
-                <td className="py-2.5 px-3 text-muted-foreground">{emp.email}</td>
-                <td className="py-2.5 px-3 text-muted-foreground">{emp.phone}</td>
-                <td className="py-2.5 px-3">
-                  <span className={emp.active ? 'badge-success' : 'badge-critical'}>{emp.active ? 'Active' : 'Inactive'}</span>
-                </td>
-                <td className="py-2.5 px-3"><SubscriptionBadge endDate={currentUser.subscriptionEnd} compact /></td>
-                <td className="py-2.5 px-3">
-                  <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => toggleActive(emp.id)}>
-                    {emp.active ? 'Disable' : 'Enable'}
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Employee Cards with Stats */}
+      <div className="space-y-3">
+        {myEmployees.map(emp => {
+          const empInvoices = invoices.filter(i => i.createdBy.id === emp.id);
+          const thisMonth = new Date();
+          const monthStart = new Date(thisMonth.getFullYear(), thisMonth.getMonth(), 1).toISOString().split('T')[0];
+          const thisMonthInvoices = empInvoices.filter(i => i.date >= monthStart);
+          const lastInv = empInvoices.length > 0 ? empInvoices.sort((a, b) => b.date.localeCompare(a.date))[0] : null;
+          const lastDays = lastInv ? Math.ceil((Date.now() - new Date(lastInv.date).getTime()) / 86400000) : null;
+
+          return (
+            <div key={emp.id} className="glass-card p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-foreground flex items-center gap-2">
+                    👷 {emp.username}
+                    <span className={emp.active ? 'badge-success' : 'badge-critical'}>{emp.active ? 'Active 🟢' : 'Inactive 🔴'}</span>
+                  </p>
+                  <div className="flex gap-4 text-xs text-muted-foreground mt-1">
+                    <span>📧 {emp.email || 'N/A'}</span>
+                    <span>📞 {emp.phone || 'N/A'}</span>
+                  </div>
+                  <div className="flex gap-4 text-xs text-muted-foreground mt-1">
+                    <span>Total invoices: <span className="font-medium text-foreground">{empInvoices.length}</span></span>
+                    <span>Is mahine: <span className="font-medium text-foreground">{thisMonthInvoices.length}</span></span>
+                    <span>Last invoice: <span className="font-medium text-foreground">{lastDays !== null ? `${lastDays} din pehle` : 'N/A'}</span></span>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1 items-end">
+                  <SubscriptionBadge endDate={currentUser.subscriptionEnd} compact />
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="ghost" className="text-xs h-7" onClick={() => toggleActive(emp.id)}>
+                      {emp.active ? 'Disable' : 'Enable'}
+                    </Button>
+                    <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => setViewEmployeeInvoices(emp.id)}>
+                      Invoices Dekho →
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
         {myEmployees.length === 0 && <p className="text-center text-sm text-muted-foreground py-8">Koi employee nahi hai</p>}
       </div>
 
