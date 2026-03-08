@@ -6,10 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Printer, Pencil, Trash2, RotateCcw, Home } from 'lucide-react';
 import type { Customer, Product, InvoiceItem, Invoice } from '@/lib/types';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Send, Printer, Pencil, Trash2, RotateCcw, Home } from 'lucide-react';
-import type { Customer, Product, InvoiceItem } from '@/lib/types';
 
 type Step =
   | 'start'
