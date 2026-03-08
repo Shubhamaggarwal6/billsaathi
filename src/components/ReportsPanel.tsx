@@ -2,7 +2,11 @@ import { useState, useMemo } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { formatDate } from '@/lib/subscription';
 import { Button } from '@/components/ui/button';
-import { Download } from 'lucide-react';
+import { Download, FileText, FileSpreadsheet, Package } from 'lucide-react';
+import {
+  downloadGSTR1Excel, downloadGSTR3BPDF, downloadMonthlyExcel,
+  downloadOutstandingExcel, downloadStockExcel, downloadPurchaseExcel, downloadCAPackage,
+} from '@/lib/exportUtils';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell, Legend,
