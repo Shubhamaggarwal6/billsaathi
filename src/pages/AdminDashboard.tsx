@@ -8,7 +8,6 @@ import { Users, FileText, AlertTriangle, TrendingUp, LogOut, Plus, RefreshCw, X,
 import SubscriptionBadge from '@/components/SubscriptionBadge';
 import AdminUserProfile from '@/components/AdminUserProfile';
 import type { PlanType, SubscriptionDuration, User } from '@/lib/types';
-import type { PlanType, SubscriptionDuration } from '@/lib/types';
 
 export default function AdminDashboard() {
   const { users, invoices, setUsers, setCurrentUser } = useApp();
