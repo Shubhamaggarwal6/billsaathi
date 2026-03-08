@@ -463,8 +463,26 @@ export default function ChatbotInvoice() {
       }
       const totalAmount = items.reduce((s, i) => s + i.price * i.quantity, 0);
       const totalGst = items.reduce((s, i) => s + (i.price * i.quantity * i.gstPercent) / 100, 0);
-      const invNum = `INV-${Date.now().toString().slice(-6)}`;
-      const invoice = {
+
+      // Determine inter/intra state
+      const firmUser = currentUser?.role === 'employee'
+        ? users.find(u => u.id === currentUser.parentUserId)
+        : currentUser;
+      const sellerStateCode = firmUser?.firmSettings?.stateCode || firmUser?.gstNumber?.substring(0, 2) || '';
+      const buyerStateCode = selectedCustomer?.stateCode || (selectedCustomer?.gstNumber ? selectedCustomer.gstNumber.substring(0, 2) : sellerStateCode);
+      const isInterState = sellerStateCode !== buyerStateCode;
+      const totalCgst = isInterState ? 0 : totalGst / 2;
+      const totalSgst = isInterState ? 0 : totalGst / 2;
+      const totalIgst = isInterState ? totalGst : 0;
+      const rawGrand = totalAmount + totalGst;
+      const grandTotal = Math.round(rawGrand);
+      const roundOff = Math.round((grandTotal - rawGrand) * 100) / 100;
+
+      const buyerState = getStateFromGST(selectedCustomer?.gstNumber || '');
+      const sellerState = getStateFromGST(firmUser?.gstNumber || '');
+
+      const invNum = `${firmUser?.firmSettings?.invoicePrefix || 'INV'}-${new Date().getFullYear()}-${String(invoices.filter(i => i.userId === userId).length + 1).padStart(4, '0')}`;
+      const invoice: Invoice = {
         id: 'inv_' + Date.now(),
         userId,
         invoiceNumber: invNum,
@@ -473,11 +491,19 @@ export default function ChatbotInvoice() {
         customerName: selectedCustomer!.name,
         customerGst: selectedCustomer!.gstNumber,
         customerAddress: selectedCustomer!.address,
+        customerState: buyerState?.name || selectedCustomer?.state || '',
+        customerStateCode: buyerStateCode,
         vehicleNumber: vehicle,
         items,
         totalAmount,
         totalGst,
-        grandTotal: totalAmount + totalGst,
+        totalCgst,
+        totalSgst,
+        totalIgst,
+        grandTotal,
+        roundOff,
+        isInterState,
+        placeOfSupply: buyerState?.name || selectedCustomer?.state || sellerState?.name || '',
         status: 'pending' as const,
         createdBy: {
           id: currentUser!.id,
