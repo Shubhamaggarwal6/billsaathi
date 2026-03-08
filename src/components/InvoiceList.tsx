@@ -12,10 +12,11 @@ interface Props {
   readOnly?: boolean;
   filterUserId?: string;
   filterEmployeeId?: string;
+  allowEmployeeEdit?: boolean;
 }
 
-export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }: Props) {
-  const { currentUser, users, invoices, setInvoices } = useApp();
+export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId, allowEmployeeEdit }: Props) {
+  const { currentUser, users, invoices, setInvoices, setProducts, products } = useApp();
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
