@@ -58,9 +58,16 @@
   * {
     @apply border-border;
   }
+  html {
+    overflow-x: hidden;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+  }
   body {
     @apply bg-background text-foreground;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
   }
 }
 
@@ -93,5 +100,44 @@
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
     background: hsl(var(--expired) / 0.12);
     color: hsl(var(--expired));
+  }
+}
+
+/* Mobile-specific global styles */
+@media (max-width: 767px) {
+  input, select, textarea {
+    font-size: 16px !important;
+    min-height: 48px;
+  }
+  button {
+    touch-action: manipulation;
+  }
+  .stat-card {
+    @apply !p-3;
+  }
+  /* Full-screen modals on mobile */
+  .mobile-modal {
+    @apply fixed inset-0 z-50 bg-card;
+    border-radius: 0 !important;
+  }
+  .mobile-modal-header {
+    @apply sticky top-0 z-10 bg-primary text-primary-foreground px-4 py-3 flex items-center gap-3;
+    padding-top: max(12px, env(safe-area-inset-top));
+  }
+  .mobile-modal-content {
+    @apply flex-1 overflow-y-auto p-4;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mobile-modal-footer {
+    @apply sticky bottom-0 bg-card border-t p-4 flex gap-2;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+  /* Hide horizontal scrollbar */
+  .overflow-x-auto::-webkit-scrollbar {
+    display: none;
+  }
+  .overflow-x-auto {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }

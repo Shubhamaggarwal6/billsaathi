@@ -6,7 +6,8 @@ import SubscriptionBadge from '@/components/SubscriptionBadge';
 import ChatbotInvoice from '@/components/ChatbotInvoice';
 import CustomerManager from '@/components/CustomerManager';
 import ProductManager from '@/components/ProductManager';
-import { MessageSquare, Users, Package, LogOut, FileText, AlertTriangle, Menu, X } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { MessageSquare, Users, Package, LogOut, FileText, AlertTriangle, Menu, Settings, X } from 'lucide-react';
 
 type Tab = 'invoice' | 'customers' | 'products' | 'stock';
 
@@ -14,6 +15,7 @@ export default function EmployeeDashboard() {
   const { currentUser, users, setCurrentUser } = useApp();
   const [activeTab, setActiveTab] = useState<Tab>('invoice');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   if (!currentUser) return null;
 
@@ -36,10 +38,10 @@ export default function EmployeeDashboard() {
   }
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: 'invoice', label: 'Invoice Banao', icon: <MessageSquare className="w-4 h-4" /> },
-    { id: 'customers', label: 'Customers', icon: <Users className="w-4 h-4" /> },
-    { id: 'products', label: 'Products', icon: <Package className="w-4 h-4" /> },
-    ...(showStock ? [{ id: 'stock' as Tab, label: 'Stock', icon: <Package className="w-4 h-4" /> }] : []),
+    { id: 'invoice', label: 'Invoice', icon: <MessageSquare className="w-5 h-5" /> },
+    { id: 'customers', label: 'Customers', icon: <Users className="w-5 h-5" /> },
+    { id: 'products', label: 'Products', icon: <Package className="w-5 h-5" /> },
+    ...(showStock ? [{ id: 'stock' as Tab, label: 'Stock', icon: <Package className="w-5 h-5" /> }] : []),
   ];
 
   const switchTab = (id: Tab) => {
@@ -49,13 +51,10 @@ export default function EmployeeDashboard() {
 
   return (
     <div className="min-h-screen bg-background flex">
-      {sidebarOpen && (
-        <div className="fixed inset-0 bg-foreground/40 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
-
-      <aside className={`fixed md:static inset-y-0 left-0 z-50 w-60 sidebar-gradient text-sidebar-foreground flex flex-col shrink-0 transition-transform duration-200 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
-        <div className="p-4 md:p-5 border-b border-sidebar-border">
-          <div className="flex items-center justify-between">
+      {/* Desktop sidebar */}
+      {!isMobile && (
+        <aside className="w-60 sidebar-gradient text-sidebar-foreground flex flex-col shrink-0">
+          <div className="p-5 border-b border-sidebar-border">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 rounded-lg bg-sidebar-primary flex items-center justify-center shrink-0">
                 <FileText className="w-5 h-5 text-sidebar-primary-foreground" />
@@ -65,54 +64,42 @@ export default function EmployeeDashboard() {
                 <p className="text-xs text-sidebar-foreground/60 truncate">Employee: {currentUser.username}</p>
               </div>
             </div>
-            <button className="md:hidden text-sidebar-foreground/70" onClick={() => setSidebarOpen(false)}>
-              <X className="w-5 h-5" />
+            <div className="mt-3"><SubscriptionBadge endDate={subEnd} compact /></div>
+          </div>
+          <nav className="flex-1 p-3 space-y-1">
+            {tabs.map(tab => (
+              <button key={tab.id} onClick={() => switchTab(tab.id)}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                  activeTab === tab.id ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'text-sidebar-foreground/70 hover:text-sidebar-accent-foreground hover:bg-sidebar-accent/50'
+                }`}>{tab.icon}{tab.label}</button>
+            ))}
+          </nav>
+          <div className="p-3 border-t border-sidebar-border">
+            <button onClick={() => setCurrentUser(null)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-sidebar-foreground/70 hover:text-sidebar-accent-foreground hover:bg-sidebar-accent/50 transition-colors">
+              <LogOut className="w-4 h-4" /> Logout
             </button>
           </div>
-          <div className="mt-3">
-            <SubscriptionBadge endDate={subEnd} compact />
-          </div>
-        </div>
+        </aside>
+      )}
 
-        <nav className="flex-1 p-3 space-y-1">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => switchTab(tab.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                activeTab === tab.id
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                  : 'text-sidebar-foreground/70 hover:text-sidebar-accent-foreground hover:bg-sidebar-accent/50'
-              }`}
-            >
-              {tab.icon}
-              {tab.label}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Mobile Header */}
+        {isMobile && (
+          <header className="fixed top-0 left-0 right-0 z-30 bg-card border-b flex items-center justify-between h-[60px]" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+            <div className="flex items-center gap-2 px-4">
+              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+                <FileText className="w-4 h-4 text-primary-foreground" />
+              </div>
+              <span className="font-bold text-sm text-foreground">BillSaathi</span>
+            </div>
+            <p className="text-xs text-muted-foreground truncate flex-1 text-center">{currentUser.firmName}</p>
+            <button onClick={() => setCurrentUser(null)} className="px-4 text-muted-foreground">
+              <LogOut className="w-5 h-5" />
             </button>
-          ))}
-        </nav>
+          </header>
+        )}
 
-        <div className="p-3 border-t border-sidebar-border">
-          <button
-            onClick={() => setCurrentUser(null)}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-sidebar-foreground/70 hover:text-sidebar-accent-foreground hover:bg-sidebar-accent/50 transition-colors"
-          >
-            <LogOut className="w-4 h-4" /> Logout
-          </button>
-        </div>
-      </aside>
-
-      <div className="flex-1 flex flex-col min-w-0 pb-16 md:pb-0">
-        <header className="md:hidden bg-card border-b px-4 py-3 flex items-center justify-between sticky top-0 z-30">
-          <button onClick={() => setSidebarOpen(true)} className="text-foreground">
-            <Menu className="w-5 h-5" />
-          </button>
-          <h1 className="font-bold text-sm text-foreground truncate">{currentUser.firmName}</h1>
-          <button onClick={() => setCurrentUser(null)} className="text-muted-foreground">
-            <LogOut className="w-4 h-4" />
-          </button>
-        </header>
-
-        <main className="flex-1 p-3 md:p-6 overflow-auto">
+        <main className={`flex-1 overflow-auto ${isMobile ? 'pt-[60px] pb-[70px] p-3' : 'p-6'}`}>
           {sub.status === 'critical' && (
             <div className="bg-warning/10 border border-warning/20 rounded-lg px-3 md:px-4 py-2 mb-4 flex items-center gap-2 text-xs md:text-sm">
               <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
@@ -126,23 +113,24 @@ export default function EmployeeDashboard() {
         </main>
       </div>
 
-      {/* Mobile Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-card border-t z-30 md:hidden">
-        <div className="flex justify-around items-center h-14">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => switchTab(tab.id)}
-              className={`flex flex-col items-center justify-center gap-0.5 px-2 py-1 rounded-lg transition-colors ${
-                activeTab === tab.id ? 'text-primary' : 'text-muted-foreground'
-              }`}
-            >
-              {tab.icon}
-              <span className="text-[10px] leading-tight">{tab.label}</span>
-            </button>
-          ))}
-        </div>
-      </nav>
+      {/* Mobile Bottom Nav */}
+      {isMobile && (
+        <nav className="fixed bottom-0 left-0 right-0 bg-card border-t z-30" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+          <div className="flex justify-around items-stretch h-[60px]">
+            {tabs.map(tab => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button key={tab.id} onClick={() => switchTab(tab.id)}
+                  className={`flex flex-col items-center justify-center gap-0.5 flex-1 relative min-h-[44px] ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
+                  {isActive && <div className="absolute top-0 left-2 right-2 h-0.5 bg-primary rounded-b" />}
+                  {tab.icon}
+                  <span className="text-[10px] leading-tight">{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      )}
     </div>
   );
 }
