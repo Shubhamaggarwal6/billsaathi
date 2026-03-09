@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { downloadFullBackup } from '@/lib/exportUtils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -57,7 +56,7 @@ export default function SettingsPanel() {
           <Input placeholder="Purana Password" type="password" value={oldPw} onChange={e => { setOldPw(e.target.value); setMsg(''); }} />
           <Input placeholder="Naya Password" type="password" value={newPw} onChange={e => { setNewPw(e.target.value); setMsg(''); }} />
           <Input placeholder="Confirm Naya Password" type="password" value={confirmPw} onChange={e => { setConfirmPw(e.target.value); setMsg(''); }} />
-          <Button onClick={handlePasswordChange} size="sm">Password Badlein</Button>
+          <Button onClick={handlePasswordChange} size="sm" className="min-h-[44px]">Password Badlein</Button>
         </div>
       </div>
 
@@ -65,21 +64,21 @@ export default function SettingsPanel() {
       <div className="glass-card p-5">
         <h3 className="text-sm font-semibold text-foreground mb-3">🏢 Firm Details</h3>
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div><label className="text-xs text-muted-foreground">Firm Name</label><Input value={firmName} onChange={e => setFirmName(e.target.value)} /></div>
             <div><label className="text-xs text-muted-foreground">GST Number</label><Input value={gstNumber} onChange={e => setGstNumber(e.target.value)} /></div>
             <div><label className="text-xs text-muted-foreground">Email</label><Input value={email} onChange={e => setEmail(e.target.value)} /></div>
             <div><label className="text-xs text-muted-foreground">Phone</label><Input value={phone} onChange={e => setPhone(e.target.value)} /></div>
           </div>
           <div><label className="text-xs text-muted-foreground">Address</label><Input value={settings.address} onChange={e => updateSetting('address', e.target.value)} /></div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div><label className="text-xs text-muted-foreground">City</label><Input value={settings.city} onChange={e => updateSetting('city', e.target.value)} /></div>
             <div>
               <label className="text-xs text-muted-foreground">State</label>
               <select value={settings.stateCode} onChange={e => {
                 const st = INDIAN_STATES.find(s => s.code === e.target.value);
                 if (st) { updateSetting('state', st.name); updateSetting('stateCode', st.code); }
-              }} className="w-full border rounded-md px-3 py-2 text-sm bg-card text-foreground">
+              }} className="w-full border rounded-md px-3 py-2 text-sm bg-card text-foreground min-h-[48px] md:min-h-0">
                 {INDIAN_STATES.map(s => <option key={s.code} value={s.code}>{s.name}</option>)}
               </select>
             </div>
@@ -91,7 +90,7 @@ export default function SettingsPanel() {
       {/* Bank Details */}
       <div className="glass-card p-5">
         <h3 className="text-sm font-semibold text-foreground mb-3">🏦 Bank Details (Invoice pe dikhega)</h3>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div><label className="text-xs text-muted-foreground">Bank Name</label><Input value={settings.bankName} onChange={e => updateSetting('bankName', e.target.value)} /></div>
           <div><label className="text-xs text-muted-foreground">Account Number</label><Input value={settings.accountNumber} onChange={e => updateSetting('accountNumber', e.target.value)} /></div>
           <div><label className="text-xs text-muted-foreground">IFSC Code</label><Input value={settings.ifscCode} onChange={e => updateSetting('ifscCode', e.target.value)} /></div>
@@ -103,11 +102,11 @@ export default function SettingsPanel() {
       <div className="glass-card p-5">
         <h3 className="text-sm font-semibold text-foreground mb-3">📄 Invoice Settings</h3>
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div><label className="text-xs text-muted-foreground">Invoice Prefix</label><Input value={settings.invoicePrefix} onChange={e => updateSetting('invoicePrefix', e.target.value)} placeholder="INV" /></div>
             <div>
               <label className="text-xs text-muted-foreground">Invoice Copy</label>
-              <select value={settings.invoiceCopyLabel} onChange={e => updateSetting('invoiceCopyLabel', e.target.value)} className="w-full border rounded-md px-3 py-2 text-sm bg-card text-foreground">
+              <select value={settings.invoiceCopyLabel} onChange={e => updateSetting('invoiceCopyLabel', e.target.value)} className="w-full border rounded-md px-3 py-2 text-sm bg-card text-foreground min-h-[48px] md:min-h-0">
                 <option value="original">Original for Recipient</option>
                 <option value="duplicate">Duplicate for Transporter</option>
                 <option value="triplicate">Triplicate for Supplier</option>
@@ -116,15 +115,15 @@ export default function SettingsPanel() {
             </div>
           </div>
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between min-h-[44px]">
               <span className="text-sm text-foreground">Bank details invoice pe dikhayein</span>
               <Switch checked={settings.showBankDetails} onCheckedChange={v => updateSetting('showBankDetails', v)} />
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between min-h-[44px]">
               <span className="text-sm text-foreground">Terms & Conditions dikhayein</span>
               <Switch checked={settings.showTerms} onCheckedChange={v => updateSetting('showTerms', v)} />
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between min-h-[44px]">
               <span className="text-sm text-foreground">E-Way Bill field dikhayein</span>
               <Switch checked={settings.showEwayBill} onCheckedChange={v => updateSetting('showEwayBill', v)} />
             </div>
@@ -138,7 +137,7 @@ export default function SettingsPanel() {
 
       {/* Employee Stock Toggle */}
       <div className="glass-card p-5">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between min-h-[44px]">
           <div>
             <h3 className="text-sm font-semibold text-foreground">👷 Employees ko Stock Dikhayein</h3>
             <p className="text-xs text-muted-foreground">Toggle on karein toh employees stock dekh sakenge</p>
@@ -147,16 +146,17 @@ export default function SettingsPanel() {
         </div>
       </div>
 
-      <Button onClick={handleFirmUpdate} className="w-full">💾 Sab Settings Save Karein</Button>
+      <Button onClick={handleFirmUpdate} className="w-full min-h-[48px]">💾 Sab Settings Save Karein</Button>
 
       {/* Data Backup */}
       <div className="glass-card p-5">
         <h3 className="text-sm font-semibold text-foreground mb-3">💾 Data Backup</h3>
-        <p className="text-xs text-muted-foreground mb-3">Poora data (products, customers, invoices, payments, purchases, employees) ek ZIP mein download karein.</p>
-        <Button className="w-full" variant="outline"
+        <p className="text-xs text-muted-foreground mb-3">Poora data ek ZIP mein download karein.</p>
+        <Button className="w-full min-h-[48px]" variant="outline"
           disabled={!!backupProgress}
           onClick={async () => {
             if (!currentUser) return;
+            const { downloadFullBackup } = await import('@/lib/exportUtils');
             setBackupProgress('Taiyaar ho raha hai...');
             await downloadFullBackup(
               currentUser, users, customers.filter(c => c.userId === currentUser.id), products.filter(p => p.userId === currentUser.id),

@@ -1,6 +1,18 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, Customer, Product, Invoice, Payment, PurchaseEntry } from '@/lib/types';
 import { initialUsers, initialCustomers, initialProducts, initialInvoices, initialPayments, initialPurchases } from '@/lib/demoData';
+
+function loadFromStorage<T>(key: string, fallback: T): T {
+  try {
+    const stored = localStorage.getItem(key);
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return fallback;
+}
+
+function saveToStorage(key: string, value: any) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+}
 
 interface AppState {
   currentUser: User | null;
@@ -22,13 +34,21 @@ interface AppState {
 const AppContext = createContext<AppState | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [users, setUsers] = useState<User[]>(initialUsers);
-  const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
-  const [products, setProducts] = useState<Product[]>(initialProducts);
-  const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
-  const [payments, setPayments] = useState<Payment[]>(initialPayments);
-  const [purchases, setPurchases] = useState<PurchaseEntry[]>(initialPurchases);
+  const [currentUser, setCurrentUser] = useState<User | null>(() => loadFromStorage('bs_currentUser', null));
+  const [users, setUsers] = useState<User[]>(() => loadFromStorage('bs_users', initialUsers));
+  const [customers, setCustomers] = useState<Customer[]>(() => loadFromStorage('bs_customers', initialCustomers));
+  const [products, setProducts] = useState<Product[]>(() => loadFromStorage('bs_products', initialProducts));
+  const [invoices, setInvoices] = useState<Invoice[]>(() => loadFromStorage('bs_invoices', initialInvoices));
+  const [payments, setPayments] = useState<Payment[]>(() => loadFromStorage('bs_payments', initialPayments));
+  const [purchases, setPurchases] = useState<PurchaseEntry[]>(() => loadFromStorage('bs_purchases', initialPurchases));
+
+  useEffect(() => { saveToStorage('bs_currentUser', currentUser); }, [currentUser]);
+  useEffect(() => { saveToStorage('bs_users', users); }, [users]);
+  useEffect(() => { saveToStorage('bs_customers', customers); }, [customers]);
+  useEffect(() => { saveToStorage('bs_products', products); }, [products]);
+  useEffect(() => { saveToStorage('bs_invoices', invoices); }, [invoices]);
+  useEffect(() => { saveToStorage('bs_payments', payments); }, [payments]);
+  useEffect(() => { saveToStorage('bs_purchases', purchases); }, [purchases]);
 
   return (
     <AppContext.Provider value={{
