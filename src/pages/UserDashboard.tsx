@@ -12,14 +12,16 @@ import EmployeeManager from '@/components/EmployeeManager';
 import SettingsPanel from '@/components/SettingsPanel';
 import InvoiceList from '@/components/InvoiceList';
 import PurchaseRegister from '@/components/PurchaseRegister';
+import CreditNotesList from '@/components/CreditNotesList';
+import DebitNotesList from '@/components/DebitNotesList';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
   LayoutDashboard, MessageSquare, Users, Package, BarChart3,
-  UserPlus, Settings, LogOut, FileText, AlertTriangle, ClipboardList, ShoppingCart, Menu, X
+  UserPlus, Settings, LogOut, FileText, AlertTriangle, ClipboardList, ShoppingCart, Menu, X, CreditCard, Receipt
 } from 'lucide-react';
 import SyncStatusBadge from '@/components/SyncStatusBadge';
 
-type Tab = 'dashboard' | 'chatbot' | 'invoices' | 'customers' | 'products' | 'reports' | 'employees' | 'settings' | 'purchases';
+type Tab = 'dashboard' | 'chatbot' | 'invoices' | 'credit-notes' | 'debit-notes' | 'customers' | 'products' | 'reports' | 'employees' | 'settings' | 'purchases';
 
 export default function UserDashboard() {
   const { currentUser, users, invoices, products, customers, setCurrentUser } = useApp();
