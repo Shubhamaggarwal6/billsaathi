@@ -14,6 +14,7 @@ import InvoiceList from '@/components/InvoiceList';
 import PurchaseRegister from '@/components/PurchaseRegister';
 import CreditNotesList from '@/components/CreditNotesList';
 import DebitNotesList from '@/components/DebitNotesList';
+import SupplierManager from '@/components/SupplierManager';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
   LayoutDashboard, MessageSquare, Users, Package, BarChart3,
