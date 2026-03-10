@@ -1,6 +1,8 @@
 import { db, type SyncQueueItem, type SyncMetadata, nowISO } from './localDb';
 import { supabase } from '@/integrations/supabase/client';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const SYNC_TABLES = ['tenants', 'users', 'customers', 'products', 'invoices', 'invoice_items', 'payments', 'purchases'] as const;
 type SyncTable = typeof SYNC_TABLES[number];
 
