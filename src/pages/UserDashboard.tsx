@@ -16,6 +16,7 @@ import {
   LayoutDashboard, MessageSquare, Users, Package, BarChart3,
   UserPlus, Settings, LogOut, FileText, AlertTriangle, ClipboardList, ShoppingCart, Menu, X, ChevronDown, ArrowLeft
 } from 'lucide-react';
+import SyncStatusBadge from '@/components/SyncStatusBadge';
 
 type Tab = 'dashboard' | 'chatbot' | 'invoices' | 'customers' | 'products' | 'reports' | 'employees' | 'settings' | 'purchases';
 
@@ -78,8 +79,9 @@ export default function UserDashboard() {
                 <p className="text-xs text-sidebar-foreground/60">{currentUser.plan} Plan</p>
               </div>
             </div>
-            <div className="mt-3">
+            <div className="mt-3 flex items-center justify-between">
               <SubscriptionBadge endDate={currentUser.subscriptionEnd} compact />
+              <SyncStatusBadge tenantId={currentUser.id} />
             </div>
           </div>
           <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
@@ -113,9 +115,12 @@ export default function UserDashboard() {
               <span className="font-bold text-sm text-foreground">BillSaathi</span>
             </div>
             <p className="text-xs text-muted-foreground truncate flex-1 text-center">{currentUser.firmName}</p>
-            <button onClick={() => switchTab('settings')} className="px-4 text-muted-foreground">
-              <Settings className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1 px-2">
+              <SyncStatusBadge tenantId={currentUser.id} />
+              <button onClick={() => switchTab('settings')} className="px-2 text-muted-foreground">
+                <Settings className="w-5 h-5" />
+              </button>
+            </div>
           </header>
         )}
 
