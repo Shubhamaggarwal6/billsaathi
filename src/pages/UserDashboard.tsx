@@ -79,9 +79,9 @@ export default function UserDashboard() {
                 <p className="text-xs text-sidebar-foreground/60">{currentUser.plan} {t('plan')}</p>
               </div>
             </div>
-            <div className="mt-3 flex items-center justify-between gap-2">
+            <div className="mt-3 flex items-center justify-between gap-2 min-w-0 overflow-hidden">
               <SubscriptionBadge endDate={currentUser.subscriptionEnd} compact />
-              <SyncStatusBadge tenantId={currentUser.id} />
+              <div className="shrink-0"><SyncStatusBadge tenantId={currentUser.id} /></div>
             </div>
           </div>
           <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
