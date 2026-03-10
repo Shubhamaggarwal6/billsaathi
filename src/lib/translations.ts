@@ -822,6 +822,7 @@ export const translations: Record<Language, Record<string, string>> = {
     syncErrorFk: 'संबंधित रिकॉर्ड सर्वर पर नहीं मिला',
     syncErrorJwt: 'सेशन समाप्त — दोबारा लॉगिन करें',
     syncErrorGeneric: 'सिंक एरर — फिर कोशिश होगी',
+    syncErrorDemo: 'डेमो डेटा — सर्वर पर सिंक नहीं होगा',
     dismiss: 'हटाएं',
     savedLocally: '✅ लोकल में सेव — ऑनलाइन होने पर सिंक होगा',
     phCustomerSearch: 'ग्राहक नाम, फोन या GST...',
