@@ -426,6 +426,7 @@ export const translations: Record<Language, Record<string, string>> = {
     syncErrorFk: 'Related record not found on server',
     syncErrorJwt: 'Session expired — please login again',
     syncErrorGeneric: 'Sync error — will retry',
+    syncErrorDemo: 'Demo data — cannot sync to server',
     dismiss: 'Dismiss',
     savedLocally: '✅ Saved locally — will sync when online',
 
