@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Search, Eye, Printer, X, Trash2, Pencil, Download, FileText, FileSpreadsheet } from 'lucide-react';
+import { Search, Eye, Printer, X, Trash2, Pencil, Download, FileText, FileSpreadsheet, Plus, MessageSquare } from 'lucide-react';
 import type { Invoice, InvoiceItem, Payment } from '@/lib/types';
+import ManualInvoiceForm from '@/components/ManualInvoiceForm';
 
 interface Props {
   readOnly?: boolean;
@@ -33,6 +34,7 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMode, setPaymentMode] = useState<Payment['mode']>('Cash');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showManualForm, setShowManualForm] = useState(false);
 
   const userId = filterUserId || (currentUser?.role === 'employee' ? currentUser?.parentUserId! : currentUser?.id!);
   const allEmployees = users.filter(u => u.parentUserId === userId);
@@ -464,9 +466,20 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
     );
   }
 
+  if (showManualForm) {
+    return <ManualInvoiceForm onClose={() => setShowManualForm(false)} />;
+  }
+
   return (
     <div className="animate-fade-in space-y-3 md:space-y-4">
-      <h2 className="text-lg md:text-xl font-bold text-foreground">📋 Invoices</h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-lg md:text-xl font-bold text-foreground">📋 Invoices</h2>
+        {!readOnly && (
+          <Button size="sm" className="min-h-[36px]" onClick={() => setShowManualForm(true)}>
+            <Plus className="w-4 h-4 mr-1" /> Manually Banao
+          </Button>
+        )}
+      </div>
 
       {readOnly && (
         <div className="bg-warning/10 border border-warning/20 rounded-lg px-3 md:px-4 py-2 flex items-center gap-2 text-xs md:text-sm">

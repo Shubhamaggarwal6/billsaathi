@@ -30,6 +30,7 @@ export type Database = {
           sgst_amount: number | null
           taxable_amount: number | null
           total_amount: number | null
+          unit: string | null
           updated_at: string
         }
         Insert: {
@@ -47,6 +48,7 @@ export type Database = {
           sgst_amount?: number | null
           taxable_amount?: number | null
           total_amount?: number | null
+          unit?: string | null
           updated_at?: string
         }
         Update: {
@@ -64,6 +66,7 @@ export type Database = {
           sgst_amount?: number | null
           taxable_amount?: number | null
           total_amount?: number | null
+          unit?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -88,6 +91,7 @@ export type Database = {
           cgst: number | null
           created_at: string
           created_by: string | null
+          created_by_name: string | null
           credit_note_date: string
           credit_note_number: string
           customer_id: string | null
@@ -95,7 +99,11 @@ export type Database = {
           id: string
           igst: number | null
           is_deleted: boolean | null
+          misc_amount: number | null
+          misc_reason: string | null
+          notes: string | null
           original_invoice_id: string | null
+          original_invoice_number: string | null
           reason: string | null
           sgst: number | null
           status: string | null
@@ -108,6 +116,7 @@ export type Database = {
           cgst?: number | null
           created_at?: string
           created_by?: string | null
+          created_by_name?: string | null
           credit_note_date?: string
           credit_note_number: string
           customer_id?: string | null
@@ -115,7 +124,11 @@ export type Database = {
           id?: string
           igst?: number | null
           is_deleted?: boolean | null
+          misc_amount?: number | null
+          misc_reason?: string | null
+          notes?: string | null
           original_invoice_id?: string | null
+          original_invoice_number?: string | null
           reason?: string | null
           sgst?: number | null
           status?: string | null
@@ -128,6 +141,7 @@ export type Database = {
           cgst?: number | null
           created_at?: string
           created_by?: string | null
+          created_by_name?: string | null
           credit_note_date?: string
           credit_note_number?: string
           customer_id?: string | null
@@ -135,7 +149,11 @@ export type Database = {
           id?: string
           igst?: number | null
           is_deleted?: boolean | null
+          misc_amount?: number | null
+          misc_reason?: string | null
+          notes?: string | null
           original_invoice_id?: string | null
+          original_invoice_number?: string | null
           reason?: string | null
           sgst?: number | null
           status?: string | null
@@ -305,9 +323,11 @@ export type Database = {
       }
       debit_notes: {
         Row: {
+          amount: number | null
           cgst: number | null
           created_at: string
           created_by: string | null
+          created_by_name: string | null
           customer_id: string | null
           customer_name: string
           debit_note_date: string
@@ -315,7 +335,9 @@ export type Database = {
           id: string
           igst: number | null
           is_deleted: boolean | null
+          notes: string | null
           original_invoice_id: string | null
+          original_invoice_number: string | null
           reason: string | null
           sgst: number | null
           status: string | null
@@ -325,9 +347,11 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          amount?: number | null
           cgst?: number | null
           created_at?: string
           created_by?: string | null
+          created_by_name?: string | null
           customer_id?: string | null
           customer_name: string
           debit_note_date?: string
@@ -335,7 +359,9 @@ export type Database = {
           id?: string
           igst?: number | null
           is_deleted?: boolean | null
+          notes?: string | null
           original_invoice_id?: string | null
+          original_invoice_number?: string | null
           reason?: string | null
           sgst?: number | null
           status?: string | null
@@ -345,9 +371,11 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          amount?: number | null
           cgst?: number | null
           created_at?: string
           created_by?: string | null
+          created_by_name?: string | null
           customer_id?: string | null
           customer_name?: string
           debit_note_date?: string
@@ -355,7 +383,9 @@ export type Database = {
           id?: string
           igst?: number | null
           is_deleted?: boolean | null
+          notes?: string | null
           original_invoice_id?: string | null
+          original_invoice_number?: string | null
           reason?: string | null
           sgst?: number | null
           status?: string | null

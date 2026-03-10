@@ -34,7 +34,7 @@ interface Message {
 }
 
 export default function ChatbotInvoice() {
-  const { currentUser, users, customers, products, invoices, payments, setCustomers, setProducts, setInvoices, setPayments } = useApp();
+  const { currentUser, users, customers, products, invoices, payments, setCustomers, setProducts, setInvoices, setPayments, creditNotes, debitNotes, setCreditNotes, setDebitNotes } = useApp();
   const { t } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -85,8 +85,8 @@ export default function ChatbotInvoice() {
       setMessages([{
         from: 'bot',
         text: '🙏 ' + t('chatWelcome'),
-        options: ['🧾 Invoice Banao', '📋 Credit Note Banao', '📋 Debit Note Banao'],
-        optionKeys: ['startInvoice', 'startCreditNote', 'startDebitNote'],
+        options: ['🧾 Invoice Banao', '📋 Credit Note Banao'],
+        optionKeys: ['startInvoice', 'startCreditNote'],
       }]);
       setInitialized(true);
     }
@@ -147,8 +147,7 @@ export default function ChatbotInvoice() {
       return;
     }
     if (optKey === 'startDebitNote') {
-      setDocType('debit-note');
-      addMsg('bot', 'Debit Note ke liye invoice search karein:', [t('btnOldCustomer'), t('btnNewCustomer')], ['btnOldCustomer', 'btnNewCustomer']);
+      // Debit notes are auto-created only, not from chatbot
       return;
     }
     if (optKey === 'btnOldCustomer' || opt === t('btnOldCustomer')) {
@@ -161,8 +160,8 @@ export default function ChatbotInvoice() {
   };
 
   const handleOptionClick = (opt: string, optKey?: string) => {
-    if (!startChoice || optKey === 'startInvoice' || optKey === 'startCreditNote' || optKey === 'startDebitNote' || optKey === 'btnOldCustomer' || optKey === 'btnNewCustomer') {
-      if (!startChoice && !['startInvoice', 'startCreditNote', 'startDebitNote'].includes(optKey || '')) {
+    if (!startChoice || optKey === 'startInvoice' || optKey === 'startCreditNote' || optKey === 'btnOldCustomer' || optKey === 'btnNewCustomer') {
+      if (!startChoice && !['startInvoice', 'startCreditNote'].includes(optKey || '')) {
         handleStartOption(opt, optKey);
         return;
       }
@@ -525,11 +524,17 @@ export default function ChatbotInvoice() {
     };
   };
 
+  const generateNoteNumber = (prefix: string, existingNotes: { id: string }[]) => {
+    const year = new Date().getFullYear();
+    const count = existingNotes.length + 1;
+    return `${prefix}-${year}-${String(count).padStart(4, '0')}`;
+  };
+
   const createCreditNote = () => {
     const inv = lastCreatedInvoice;
     if (!inv) return;
     const totals = getCnTotals();
-    const cnNumber = `CN-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`;
+    const cnNumber = generateNoteNumber('CN', creditNotes);
     
     const cn: CreditNote = {
       id: crypto.randomUUID(), userId, creditNoteNumber: cnNumber,
@@ -553,10 +558,27 @@ export default function ChatbotInvoice() {
       }));
     }
     
-    // TODO: Save to context/IndexedDB when credit notes are added to AppContext
+    // Save to context (triggers IndexedDB + sync)
+    setCreditNotes(prev => [...prev, cn]);
+    
     addMsg('bot', `✅ Credit Note Ban Gayi! ${cnNumber}\nAmount: ₹${totals.total.toLocaleString('en-IN')}`);
     setPanelMode('done');
-    setLastCreatedInvoice(inv); // Keep for done screen reference
+    setLastCreatedInvoice(inv);
+  };
+
+  const createSilentDebitNote = (inv: Invoice, balanceDue: number, reason: string) => {
+    const dnNumber = generateNoteNumber('DN', debitNotes);
+    const dn: DebitNote = {
+      id: crypto.randomUUID(), userId, debitNoteNumber: dnNumber,
+      date: new Date().toISOString().split('T')[0],
+      originalInvoiceId: inv.id, originalInvoiceNumber: inv.invoiceNumber,
+      customerId: inv.customerId, customerName: inv.customerName,
+      reason, items: [], subtotal: balanceDue, cgst: 0, sgst: 0, igst: 0,
+      total: balanceDue, isInterState: false, status: 'active',
+      createdBy: { id: currentUser!.id, name: currentUser!.firmName || currentUser!.username, role: currentUser!.role, timestamp: new Date().toISOString() },
+    };
+    setDebitNotes(prev => [...prev, dn]);
+    return dnNumber;
   };
 
   // ---- Invoice creation ----
@@ -685,17 +707,16 @@ export default function ChatbotInvoice() {
   };
 
   const createAutoDebitNote = (inv: Invoice, amount: number, reason: string) => {
-    const dnNumber = `DN-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`;
-    // Debit note created silently — will be visible in Debit Notes section
-    // TODO: Save to context/IndexedDB when debit notes added to AppContext
-    console.log('Auto Debit Note created:', dnNumber, amount, reason);
+    const dnNumber = createSilentDebitNote(inv, amount, reason);
+    // Show small toast only
+    addMsg('bot', `✅ Debit note ${dnNumber} ban gayi`);
   };
 
   const resetChat = () => {
     setMessages([{
       from: 'bot', text: '🙏 ' + t('chatWelcome'),
-      options: ['🧾 Invoice Banao', '📋 Credit Note Banao', '📋 Debit Note Banao'],
-      optionKeys: ['startInvoice', 'startCreditNote', 'startDebitNote'],
+      options: ['🧾 Invoice Banao', '📋 Credit Note Banao'],
+      optionKeys: ['startInvoice', 'startCreditNote'],
     }]);
     setStep('select-customer'); setPanelMode('chat'); setStartChoice(false);
     setSelectedCustomer(null); setNewCust({ name: '', phone: '', gstNumber: '', address: '' });

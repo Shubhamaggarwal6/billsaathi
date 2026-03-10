@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { User, Customer, Product, Invoice, Payment, PurchaseEntry } from '@/lib/types';
+import { User, Customer, Product, Invoice, Payment, PurchaseEntry, CreditNote, DebitNote } from '@/lib/types';
 import { initialUsers, initialCustomers, initialProducts, initialInvoices, initialPayments, initialPurchases } from '@/lib/demoData';
-import { db, queueSync, generateId, nowISO, type LocalCustomer, type LocalProduct, type LocalInvoice, type LocalInvoiceItem, type LocalPayment, type LocalPurchase } from '@/lib/localDb';
+import { db, queueSync, generateId, nowISO, type LocalCustomer, type LocalProduct, type LocalInvoice, type LocalInvoiceItem, type LocalPayment, type LocalPurchase, type LocalCreditNote, type LocalCreditNoteItem, type LocalDebitNote } from '@/lib/localDb';
 import { triggerSync, startAutoSync } from '@/lib/syncEngine';
 
 // Helpers to convert between old format and Dexie format
@@ -147,6 +147,75 @@ function saveToStorage(key: string, value: any) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
 }
 
+// Convert credit/debit notes
+function toLocalCreditNote(cn: CreditNote): LocalCreditNote {
+  return {
+    id: cn.id, tenant_id: cn.userId, credit_note_number: cn.creditNoteNumber,
+    credit_note_date: cn.date, original_invoice_id: cn.originalInvoiceId,
+    original_invoice_number: cn.originalInvoiceNumber,
+    customer_id: cn.customerId, customer_name: cn.customerName,
+    reason: cn.reason, subtotal: cn.subtotal, cgst: cn.cgst, sgst: cn.sgst,
+    igst: cn.igst, total: cn.total, status: cn.status,
+    created_by: cn.createdBy?.id, created_by_name: cn.createdBy?.name,
+    is_deleted: false, created_at: cn.createdBy?.timestamp || nowISO(), updated_at: nowISO(),
+  };
+}
+
+function fromLocalCreditNote(cn: LocalCreditNote): CreditNote {
+  return {
+    id: cn.id, userId: cn.tenant_id, creditNoteNumber: cn.credit_note_number,
+    date: cn.credit_note_date, originalInvoiceId: cn.original_invoice_id || '',
+    originalInvoiceNumber: cn.original_invoice_number,
+    customerId: cn.customer_id || '', customerName: cn.customer_name,
+    reason: cn.reason || '', items: [], subtotal: cn.subtotal || 0,
+    cgst: cn.cgst || 0, sgst: cn.sgst || 0, igst: cn.igst || 0,
+    total: cn.total || 0, isInterState: (cn.igst || 0) > 0,
+    status: (cn.status as any) || 'active',
+    createdBy: { id: cn.created_by || '', name: cn.created_by_name || '', role: 'user', timestamp: cn.created_at },
+  };
+}
+
+function toLocalDebitNote(dn: DebitNote): LocalDebitNote {
+  return {
+    id: dn.id, tenant_id: dn.userId, debit_note_number: dn.debitNoteNumber,
+    debit_note_date: dn.date, original_invoice_id: dn.originalInvoiceId,
+    original_invoice_number: dn.originalInvoiceNumber,
+    customer_id: dn.customerId, customer_name: dn.customerName,
+    reason: dn.reason, amount: dn.total, subtotal: dn.subtotal,
+    cgst: dn.cgst, sgst: dn.sgst, igst: dn.igst, total: dn.total,
+    status: dn.status, created_by: dn.createdBy?.id,
+    created_by_name: dn.createdBy?.name,
+    is_deleted: false, created_at: dn.createdBy?.timestamp || nowISO(), updated_at: nowISO(),
+  };
+}
+
+function fromLocalDebitNote(dn: LocalDebitNote): DebitNote {
+  return {
+    id: dn.id, userId: dn.tenant_id, debitNoteNumber: dn.debit_note_number,
+    date: dn.debit_note_date, originalInvoiceId: dn.original_invoice_id || '',
+    originalInvoiceNumber: dn.original_invoice_number,
+    customerId: dn.customer_id || '', customerName: dn.customer_name,
+    reason: dn.reason || '', items: [], subtotal: dn.subtotal || 0,
+    cgst: dn.cgst || 0, sgst: dn.sgst || 0, igst: dn.igst || 0,
+    total: dn.total || 0, isInterState: (dn.igst || 0) > 0,
+    status: (dn.status as any) || 'active',
+    createdBy: { id: dn.created_by || '', name: dn.created_by_name || '', role: 'user', timestamp: dn.created_at },
+  };
+}
+
+function toLocalCnItem(item: import('@/lib/types').InvoiceItem, cnId: string): LocalCreditNoteItem {
+  const taxable = item.quantity * item.price;
+  return {
+    id: generateId(), credit_note_id: cnId, product_id: item.productId,
+    product_name: item.productName, hsn_code: item.hsn || '', quantity: item.quantity,
+    rate: item.price, unit: item.unit || 'Piece', taxable_amount: taxable,
+    gst_rate: item.gstPercent, cgst_amount: taxable * item.gstPercent / 200,
+    sgst_amount: taxable * item.gstPercent / 200, igst_amount: 0,
+    total_amount: taxable + taxable * item.gstPercent / 100,
+    created_at: nowISO(), updated_at: nowISO(),
+  };
+}
+
 interface AppState {
   currentUser: User | null;
   users: User[];
@@ -155,6 +224,8 @@ interface AppState {
   invoices: Invoice[];
   payments: Payment[];
   purchases: PurchaseEntry[];
+  creditNotes: CreditNote[];
+  debitNotes: DebitNote[];
   setCurrentUser: (u: User | null) => void;
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
   setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
@@ -162,6 +233,8 @@ interface AppState {
   setInvoices: React.Dispatch<React.SetStateAction<Invoice[]>>;
   setPayments: React.Dispatch<React.SetStateAction<Payment[]>>;
   setPurchases: React.Dispatch<React.SetStateAction<PurchaseEntry[]>>;
+  setCreditNotes: React.Dispatch<React.SetStateAction<CreditNote[]>>;
+  setDebitNotes: React.Dispatch<React.SetStateAction<DebitNote[]>>;
   dbReady: boolean;
 }
 
@@ -175,6 +248,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [invoices, setInvoicesRaw] = useState<Invoice[]>(() => loadFromStorage('bs_invoices', initialInvoices));
   const [payments, setPaymentsRaw] = useState<Payment[]>(() => loadFromStorage('bs_payments', initialPayments));
   const [purchases, setPurchasesRaw] = useState<PurchaseEntry[]>(() => loadFromStorage('bs_purchases', initialPurchases));
+  const [creditNotes, setCreditNotesRaw] = useState<CreditNote[]>(() => loadFromStorage('bs_creditNotes', []));
+  const [debitNotes, setDebitNotesRaw] = useState<DebitNote[]>(() => loadFromStorage('bs_debitNotes', []));
   const [dbReady, setDbReady] = useState(false);
 
   // Load from IndexedDB on mount
@@ -182,21 +257,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     async function loadFromDb() {
       try {
-        const [localCustomers, localProducts, localInvoices, localPayments, localPurchases] = await Promise.all([
+        const [localCustomers, localProducts, localInvoices, localPayments, localPurchases, localCreditNotes, localDebitNotes] = await Promise.all([
           db.customers.filter(c => !c.is_deleted).toArray(),
           db.products.filter(p => !p.is_deleted).toArray(),
           db.invoices.filter(i => !i.is_deleted).toArray(),
           db.payments.filter(p => !p.is_deleted).toArray(),
           db.purchases.filter(p => !p.is_deleted).toArray(),
+          db.credit_notes.filter(cn => !cn.is_deleted).toArray().catch(() => []),
+          db.debit_notes.filter(dn => !dn.is_deleted).toArray().catch(() => []),
         ]);
 
         if (cancelled) return;
 
-        // Only use IndexedDB data if it exists
         if (localCustomers.length > 0) setCustomersRaw(localCustomers.map(fromLocalCustomer));
         if (localProducts.length > 0) setProductsRaw(localProducts.map(fromLocalProduct));
         if (localInvoices.length > 0) {
-          // Load items for each invoice
           const invs = await Promise.all(localInvoices.map(async inv => {
             const items = await db.invoice_items.where('invoice_id').equals(inv.id).toArray();
             const converted = fromLocalInvoice(inv);
@@ -213,6 +288,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         if (localPayments.length > 0) setPaymentsRaw(localPayments.map(fromLocalPayment));
         if (localPurchases.length > 0) setPurchasesRaw(localPurchases.map(fromLocalPurchase));
+        if (localCreditNotes.length > 0) {
+          const cns = await Promise.all(localCreditNotes.map(async cn => {
+            const items = await db.credit_note_items.where('credit_note_id').equals(cn.id).toArray().catch(() => []);
+            const converted = fromLocalCreditNote(cn);
+            converted.items = items.map(it => ({
+              productId: it.product_id || '', productName: it.product_name,
+              hsn: it.hsn_code || '', quantity: it.quantity, mrp: it.rate,
+              sellingPrice: it.rate, price: it.rate, discount: 0,
+              gstPercent: it.gst_rate || 0, unit: it.unit || 'Piece',
+            }));
+            return converted;
+          }));
+          setCreditNotesRaw(cns);
+        }
+        if (localDebitNotes.length > 0) setDebitNotesRaw(localDebitNotes.map(fromLocalDebitNote));
 
         setDbReady(true);
       } catch (err) {
@@ -384,10 +474,58 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, [currentUser?.id]);
 
+  const setCreditNotes: React.Dispatch<React.SetStateAction<CreditNote[]>> = useCallback((action) => {
+    setCreditNotesRaw(prev => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      const tenantId = currentUser?.id || '';
+      for (const cn of next) {
+        const local = toLocalCreditNote(cn);
+        db.credit_notes.put(local).then(async () => {
+          const items = cn.items.map(it => toLocalCnItem(it, cn.id));
+          await db.credit_note_items.where('credit_note_id').equals(cn.id).delete().catch(() => {});
+          if (items.length > 0) await db.credit_note_items.bulkPut(items);
+          const existing = prev.find(x => x.id === cn.id);
+          if (!existing) {
+            queueSync('credit_notes', cn.id, 'CREATE', local);
+            for (const item of items) queueSync('credit_note_items', item.id, 'CREATE', item);
+          } else {
+            queueSync('credit_notes', cn.id, 'UPDATE', local);
+          }
+          triggerSync(tenantId);
+        });
+      }
+      saveToStorage('bs_creditNotes', next);
+      return next;
+    });
+  }, [currentUser?.id]);
+
+  const setDebitNotes: React.Dispatch<React.SetStateAction<DebitNote[]>> = useCallback((action) => {
+    setDebitNotesRaw(prev => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      const tenantId = currentUser?.id || '';
+      for (const dn of next) {
+        const local = toLocalDebitNote(dn);
+        db.debit_notes.put(local).then(() => {
+          const existing = prev.find(x => x.id === dn.id);
+          if (!existing) {
+            queueSync('debit_notes', dn.id, 'CREATE', local);
+          } else {
+            queueSync('debit_notes', dn.id, 'UPDATE', local);
+          }
+          triggerSync(tenantId);
+        });
+      }
+      saveToStorage('bs_debitNotes', next);
+      return next;
+    });
+  }, [currentUser?.id]);
+
   return (
     <AppContext.Provider value={{
       currentUser, users, customers, products, invoices, payments, purchases,
+      creditNotes, debitNotes,
       setCurrentUser, setUsers, setCustomers, setProducts, setInvoices, setPayments, setPurchases,
+      setCreditNotes, setDebitNotes,
       dbReady,
     }}>
       {children}
