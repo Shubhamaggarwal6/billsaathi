@@ -556,7 +556,8 @@ export default function ChatbotInvoice() {
       <div className="glass-card flex-1 flex flex-col overflow-hidden">
         {/* ====== PANEL: PREVIEW ====== */}
         {panelMode === 'preview' && (
-          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="overflow-y-auto p-3 space-y-3 flex-1" style={{ maxHeight: '60vh', WebkitOverflowScrolling: 'touch' as any }}>
             {/* Invoice-style preview */}
             <div className="border border-primary/30 rounded-lg overflow-hidden bg-card text-foreground text-xs">
               {/* Header */}
