@@ -147,6 +147,75 @@ function saveToStorage(key: string, value: any) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
 }
 
+// Convert credit/debit notes
+function toLocalCreditNote(cn: CreditNote): LocalCreditNote {
+  return {
+    id: cn.id, tenant_id: cn.userId, credit_note_number: cn.creditNoteNumber,
+    credit_note_date: cn.date, original_invoice_id: cn.originalInvoiceId,
+    original_invoice_number: cn.originalInvoiceNumber,
+    customer_id: cn.customerId, customer_name: cn.customerName,
+    reason: cn.reason, subtotal: cn.subtotal, cgst: cn.cgst, sgst: cn.sgst,
+    igst: cn.igst, total: cn.total, status: cn.status,
+    created_by: cn.createdBy?.id, created_by_name: cn.createdBy?.name,
+    is_deleted: false, created_at: cn.createdBy?.timestamp || nowISO(), updated_at: nowISO(),
+  };
+}
+
+function fromLocalCreditNote(cn: LocalCreditNote): CreditNote {
+  return {
+    id: cn.id, userId: cn.tenant_id, creditNoteNumber: cn.credit_note_number,
+    date: cn.credit_note_date, originalInvoiceId: cn.original_invoice_id || '',
+    originalInvoiceNumber: cn.original_invoice_number,
+    customerId: cn.customer_id || '', customerName: cn.customer_name,
+    reason: cn.reason || '', items: [], subtotal: cn.subtotal || 0,
+    cgst: cn.cgst || 0, sgst: cn.sgst || 0, igst: cn.igst || 0,
+    total: cn.total || 0, isInterState: (cn.igst || 0) > 0,
+    status: (cn.status as any) || 'active',
+    createdBy: { id: cn.created_by || '', name: cn.created_by_name || '', role: 'user', timestamp: cn.created_at },
+  };
+}
+
+function toLocalDebitNote(dn: DebitNote): LocalDebitNote {
+  return {
+    id: dn.id, tenant_id: dn.userId, debit_note_number: dn.debitNoteNumber,
+    debit_note_date: dn.date, original_invoice_id: dn.originalInvoiceId,
+    original_invoice_number: dn.originalInvoiceNumber,
+    customer_id: dn.customerId, customer_name: dn.customerName,
+    reason: dn.reason, amount: dn.total, subtotal: dn.subtotal,
+    cgst: dn.cgst, sgst: dn.sgst, igst: dn.igst, total: dn.total,
+    status: dn.status, created_by: dn.createdBy?.id,
+    created_by_name: dn.createdBy?.name,
+    is_deleted: false, created_at: dn.createdBy?.timestamp || nowISO(), updated_at: nowISO(),
+  };
+}
+
+function fromLocalDebitNote(dn: LocalDebitNote): DebitNote {
+  return {
+    id: dn.id, userId: dn.tenant_id, debitNoteNumber: dn.debit_note_number,
+    date: dn.debit_note_date, originalInvoiceId: dn.original_invoice_id || '',
+    originalInvoiceNumber: dn.original_invoice_number,
+    customerId: dn.customer_id || '', customerName: dn.customer_name,
+    reason: dn.reason || '', items: [], subtotal: dn.subtotal || 0,
+    cgst: dn.cgst || 0, sgst: dn.sgst || 0, igst: dn.igst || 0,
+    total: dn.total || 0, isInterState: (dn.igst || 0) > 0,
+    status: (dn.status as any) || 'active',
+    createdBy: { id: dn.created_by || '', name: dn.created_by_name || '', role: 'user', timestamp: dn.created_at },
+  };
+}
+
+function toLocalCnItem(item: import('@/lib/types').InvoiceItem, cnId: string): LocalCreditNoteItem {
+  const taxable = item.quantity * item.price;
+  return {
+    id: generateId(), credit_note_id: cnId, product_id: item.productId,
+    product_name: item.productName, hsn_code: item.hsn || '', quantity: item.quantity,
+    rate: item.price, unit: item.unit || 'Piece', taxable_amount: taxable,
+    gst_rate: item.gstPercent, cgst_amount: taxable * item.gstPercent / 200,
+    sgst_amount: taxable * item.gstPercent / 200, igst_amount: 0,
+    total_amount: taxable + taxable * item.gstPercent / 100,
+    created_at: nowISO(), updated_at: nowISO(),
+  };
+}
+
 interface AppState {
   currentUser: User | null;
   users: User[];
@@ -155,6 +224,8 @@ interface AppState {
   invoices: Invoice[];
   payments: Payment[];
   purchases: PurchaseEntry[];
+  creditNotes: CreditNote[];
+  debitNotes: DebitNote[];
   setCurrentUser: (u: User | null) => void;
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
   setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
@@ -162,6 +233,8 @@ interface AppState {
   setInvoices: React.Dispatch<React.SetStateAction<Invoice[]>>;
   setPayments: React.Dispatch<React.SetStateAction<Payment[]>>;
   setPurchases: React.Dispatch<React.SetStateAction<PurchaseEntry[]>>;
+  setCreditNotes: React.Dispatch<React.SetStateAction<CreditNote[]>>;
+  setDebitNotes: React.Dispatch<React.SetStateAction<DebitNote[]>>;
   dbReady: boolean;
 }
 
