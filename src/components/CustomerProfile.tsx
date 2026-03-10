@@ -336,12 +336,27 @@ export default function CustomerProfile({ customer, onBack, readOnly }: Props) {
             <tbody>
               {(() => {
                 let balance = 0;
+                const rowBg: Record<string, string> = {
+                  invoice: '',
+                  payment: 'bg-blue-50 dark:bg-blue-950/20',
+                  credit_note: 'bg-green-50 dark:bg-green-950/20',
+                  debit_note: 'bg-red-50 dark:bg-red-950/20',
+                };
+                const typeIcon: Record<string, string> = {
+                  invoice: '🧾',
+                  payment: '💰',
+                  credit_note: '📗',
+                  debit_note: '📕',
+                };
                 return ledgerEntries.map((entry, i) => {
                   balance += entry.debit - entry.credit;
                   return (
-                    <tr key={i} className="border-b hover:bg-muted/30 transition-colors">
+                    <tr key={i} className={`border-b hover:bg-muted/30 transition-colors ${rowBg[entry.type] || ''}`}>
                       <td className="py-2.5 px-3 text-muted-foreground text-xs">{formatDate(entry.date)}</td>
-                      <td className="py-2.5 px-3 text-foreground">{entry.description}</td>
+                      <td className="py-2.5 px-3">
+                        <span className="text-foreground">{typeIcon[entry.type]} {entry.description}</span>
+                        {entry.ref && <p className="text-xs text-muted-foreground">{entry.ref}</p>}
+                      </td>
                       <td className="py-2.5 px-3 text-right text-critical">{entry.debit > 0 ? `₹${entry.debit.toLocaleString('en-IN')}` : ''}</td>
                       <td className="py-2.5 px-3 text-right text-success">{entry.credit > 0 ? `₹${entry.credit.toLocaleString('en-IN')}` : ''}</td>
                       <td className={`py-2.5 px-3 text-right font-medium ${balance > 0 ? 'text-critical' : 'text-success'}`}>₹{Math.abs(balance).toLocaleString('en-IN')}</td>
