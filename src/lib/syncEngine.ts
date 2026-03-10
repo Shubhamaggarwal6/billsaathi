@@ -67,11 +67,20 @@ async function pushChanges(): Promise<void> {
     .sortBy('created_at');
 
   for (const item of pending) {
+    // Skip items with non-UUID record IDs — they can never sync
+    if (!UUID_REGEX.test(item.record_id)) {
+      await db.sync_queue.update(item.id, {
+        status: 'FAILED',
+        retry_count: 99,
+        last_error: 'Record ID is not a valid UUID — demo data cannot sync',
+      });
+      continue;
+    }
+
     await db.sync_queue.update(item.id, { status: 'SYNCING' });
     try {
       const table = item.table_name as SyncTable;
       const payload = { ...item.payload };
-      // Remove fields not in supabase
       delete payload.is_local;
 
       if (item.operation === 'CREATE') {
