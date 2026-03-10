@@ -65,6 +65,7 @@ export default function ChatbotInvoice() {
   const [editField, setEditField] = useState<string | null>(null);
   const [editInput, setEditInput] = useState('');
   const [initialized, setInitialized] = useState(false);
+  const [docType, setDocType] = useState<'invoice' | 'credit-note' | 'debit-note'>('invoice');
 
   const userId = currentUser?.role === 'employee' ? currentUser.parentUserId! : currentUser?.id!;
   const myCustomers = customers.filter(c => c.userId === userId);
