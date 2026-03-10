@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { getSubscriptionStatus, formatDate } from '@/lib/subscription';
 import { Button } from '@/components/ui/button';
 import SubscriptionBadge from '@/components/SubscriptionBadge';
@@ -14,7 +15,7 @@ import PurchaseRegister from '@/components/PurchaseRegister';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
   LayoutDashboard, MessageSquare, Users, Package, BarChart3,
-  UserPlus, Settings, LogOut, FileText, AlertTriangle, ClipboardList, ShoppingCart, Menu, X, ChevronDown, ArrowLeft
+  UserPlus, Settings, LogOut, FileText, AlertTriangle, ClipboardList, ShoppingCart, Menu, X
 } from 'lucide-react';
 import SyncStatusBadge from '@/components/SyncStatusBadge';
 
@@ -22,6 +23,7 @@ type Tab = 'dashboard' | 'chatbot' | 'invoices' | 'customers' | 'products' | 're
 
 export default function UserDashboard() {
   const { currentUser, users, invoices, products, customers, setCurrentUser } = useApp();
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -38,18 +40,17 @@ export default function UserDashboard() {
   const lowStockProducts = myProducts.filter(p => p.stock <= p.lowStockThreshold);
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
-    { id: 'chatbot', label: 'Invoice Banao', icon: <MessageSquare className="w-5 h-5" /> },
-    { id: 'invoices', label: 'Invoices', icon: <ClipboardList className="w-5 h-5" /> },
-    { id: 'customers', label: 'Customers', icon: <Users className="w-5 h-5" /> },
-    { id: 'products', label: 'Products', icon: <Package className="w-5 h-5" /> },
-    { id: 'purchases', label: 'Purchases', icon: <ShoppingCart className="w-5 h-5" /> },
-    { id: 'reports', label: 'Reports', icon: <BarChart3 className="w-5 h-5" /> },
-    { id: 'employees', label: 'Employees', icon: <UserPlus className="w-5 h-5" /> },
-    { id: 'settings', label: 'Settings', icon: <Settings className="w-5 h-5" /> },
+    { id: 'dashboard', label: t('dashboard'), icon: <LayoutDashboard className="w-5 h-5" /> },
+    { id: 'chatbot', label: t('createInvoice'), icon: <MessageSquare className="w-5 h-5" /> },
+    { id: 'invoices', label: t('invoices'), icon: <ClipboardList className="w-5 h-5" /> },
+    { id: 'customers', label: t('customers'), icon: <Users className="w-5 h-5" /> },
+    { id: 'products', label: t('products'), icon: <Package className="w-5 h-5" /> },
+    { id: 'purchases', label: t('purchases'), icon: <ShoppingCart className="w-5 h-5" /> },
+    { id: 'reports', label: t('reports'), icon: <BarChart3 className="w-5 h-5" /> },
+    { id: 'employees', label: t('employees'), icon: <UserPlus className="w-5 h-5" /> },
+    { id: 'settings', label: t('settings'), icon: <Settings className="w-5 h-5" /> },
   ];
 
-  // Bottom nav: first 4 + More
   const bottomNavTabs = tabs.slice(0, 4);
   const moreTabs = tabs.slice(4);
 
@@ -61,7 +62,6 @@ export default function UserDashboard() {
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Desktop sidebar overlay */}
       {sidebarOpen && !isMobile && (
         <div className="fixed inset-0 bg-foreground/40 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
       )}
@@ -74,12 +74,12 @@ export default function UserDashboard() {
               <div className="w-9 h-9 rounded-lg bg-sidebar-primary flex items-center justify-center shrink-0">
                 <FileText className="w-5 h-5 text-sidebar-primary-foreground" />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <h1 className="font-bold text-sm text-sidebar-accent-foreground truncate">{currentUser.firmName}</h1>
-                <p className="text-xs text-sidebar-foreground/60">{currentUser.plan} Plan</p>
+                <p className="text-xs text-sidebar-foreground/60">{currentUser.plan} {t('plan')}</p>
               </div>
             </div>
-            <div className="mt-3 flex items-center justify-between">
+            <div className="mt-3 flex items-center justify-between gap-2">
               <SubscriptionBadge endDate={currentUser.subscriptionEnd} compact />
               <SyncStatusBadge tenantId={currentUser.id} />
             </div>
@@ -97,7 +97,7 @@ export default function UserDashboard() {
           <div className="p-3 border-t border-sidebar-border">
             <button onClick={() => setCurrentUser(null)}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-sidebar-foreground/70 hover:text-sidebar-accent-foreground hover:bg-sidebar-accent/50 transition-colors">
-              <LogOut className="w-4 h-4" /> Logout
+              <LogOut className="w-4 h-4" /> {t('logout')}
             </button>
           </div>
         </aside>
@@ -105,19 +105,19 @@ export default function UserDashboard() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Mobile Top Header */}
+        {/* Mobile Top Header — proper flex layout */}
         {isMobile && (
-          <header className="fixed top-0 left-0 right-0 z-30 bg-card border-b flex items-center justify-between h-[60px]" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-            <div className="flex items-center gap-2 px-4">
+          <header className="fixed top-0 left-0 right-0 z-30 bg-card border-b flex items-center h-[60px] px-3" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+            <div className="flex items-center gap-2 shrink-0">
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
                 <FileText className="w-4 h-4 text-primary-foreground" />
               </div>
               <span className="font-bold text-sm text-foreground">BillSaathi</span>
             </div>
-            <p className="text-xs text-muted-foreground truncate flex-1 text-center">{currentUser.firmName}</p>
-            <div className="flex items-center gap-1 px-2">
+            <p className="text-xs text-muted-foreground truncate flex-1 text-center min-w-0 px-2">{currentUser.firmName}</p>
+            <div className="flex items-center gap-1 shrink-0">
               <SyncStatusBadge tenantId={currentUser.id} />
-              <button onClick={() => switchTab('settings')} className="px-2 text-muted-foreground">
+              <button onClick={() => switchTab('settings')} className="p-2 text-muted-foreground min-w-[32px] min-h-[32px] flex items-center justify-center">
                 <Settings className="w-5 h-5" />
               </button>
             </div>
@@ -127,35 +127,35 @@ export default function UserDashboard() {
         {sub.status === 'critical' && (
           <div className={`bg-warning/10 border-b border-warning/20 px-4 md:px-6 py-2 flex items-center gap-2 text-xs md:text-sm ${isMobile ? 'mt-[60px]' : ''}`}>
             <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
-            <span className="text-warning font-medium">⚠️ Subscription {sub.daysLeft} din mein khatam hogi!</span>
+            <span className="text-warning font-medium">⚠️ {t('subscriptionWarning', { days: String(sub.daysLeft) })}</span>
           </div>
         )}
 
-        <main className={`flex-1 overflow-auto ${isMobile ? 'pt-[60px] pb-[70px]' : 'p-6'} ${isMobile && sub.status !== 'critical' ? '' : ''}`}>
+        <main className={`flex-1 overflow-auto ${isMobile ? 'pt-[60px] pb-[70px]' : 'p-6'}`}>
           <div className={isMobile ? 'p-3' : ''}>
             {activeTab === 'dashboard' && (
               <div className="space-y-4 animate-fade-in">
-                <h2 className="text-lg md:text-xl font-bold text-foreground">Dashboard</h2>
+                <h2 className="text-lg md:text-xl font-bold text-foreground">{t('dashboard')}</h2>
                 <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
-                  <div className="stat-card"><p className="text-[10px] md:text-xs text-muted-foreground">Aaj ki Sales</p><p className="text-lg md:text-2xl font-bold text-foreground">₹{todaySales.toLocaleString('en-IN')}</p></div>
-                  <div className="stat-card"><p className="text-[10px] md:text-xs text-muted-foreground">Total Pending</p><p className="text-lg md:text-2xl font-bold text-warning">₹{totalPending.toLocaleString('en-IN')}</p></div>
-                  <div className="stat-card"><p className="text-[10px] md:text-xs text-muted-foreground">Total Revenue</p><p className="text-lg md:text-2xl font-bold text-success">₹{totalRevenue.toLocaleString('en-IN')}</p></div>
-                  <div className="stat-card"><p className="text-[10px] md:text-xs text-muted-foreground">Total Invoices</p><p className="text-lg md:text-2xl font-bold text-foreground">{myInvoices.length}</p></div>
+                  <div className="stat-card"><p className="text-[10px] md:text-xs text-muted-foreground">{t('todaySales')}</p><p className="text-lg md:text-2xl font-bold text-foreground">₹{todaySales.toLocaleString('en-IN')}</p></div>
+                  <div className="stat-card"><p className="text-[10px] md:text-xs text-muted-foreground">{t('totalPending')}</p><p className="text-lg md:text-2xl font-bold text-warning">₹{totalPending.toLocaleString('en-IN')}</p></div>
+                  <div className="stat-card"><p className="text-[10px] md:text-xs text-muted-foreground">{t('totalRevenue')}</p><p className="text-lg md:text-2xl font-bold text-success">₹{totalRevenue.toLocaleString('en-IN')}</p></div>
+                  <div className="stat-card"><p className="text-[10px] md:text-xs text-muted-foreground">{t('totalInvoices')}</p><p className="text-lg md:text-2xl font-bold text-foreground">{myInvoices.length}</p></div>
                 </div>
 
                 <div className="glass-card p-4 md:p-5">
-                  <h3 className="text-sm font-semibold text-foreground mb-2">Subscription Details</h3>
+                  <h3 className="text-sm font-semibold text-foreground mb-2">{t('subscriptionDetails')}</h3>
                   <div className="flex items-center gap-3 md:gap-4 flex-wrap">
-                    <div><p className="text-xs text-muted-foreground">Plan</p><p className="font-medium text-foreground text-sm">{currentUser.plan}</p></div>
-                    <div><p className="text-xs text-muted-foreground">End Date</p><p className="font-medium text-foreground text-sm">{formatDate(currentUser.subscriptionEnd)}</p></div>
+                    <div><p className="text-xs text-muted-foreground">{t('plan')}</p><p className="font-medium text-foreground text-sm">{currentUser.plan}</p></div>
+                    <div><p className="text-xs text-muted-foreground">{t('endDate')}</p><p className="font-medium text-foreground text-sm">{formatDate(currentUser.subscriptionEnd)}</p></div>
                     <SubscriptionBadge endDate={currentUser.subscriptionEnd} compact />
                   </div>
                 </div>
 
                 <div className="glass-card p-4 md:p-5">
-                  <h3 className="text-sm font-semibold text-foreground mb-3">Recent Invoices</h3>
+                  <h3 className="text-sm font-semibold text-foreground mb-3">{t('recentInvoices')}</h3>
                   {myInvoices.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Koi invoice nahi hai abhi</p>
+                    <p className="text-sm text-muted-foreground">{t('noInvoicesYet')}</p>
                   ) : (
                     <div className="space-y-2">
                       {myInvoices.slice(-5).reverse().map(inv => (
@@ -167,7 +167,7 @@ export default function UserDashboard() {
                           <div className="text-right shrink-0">
                             <p className="text-sm font-medium text-foreground">₹{inv.grandTotal.toLocaleString('en-IN')}</p>
                             <span className={inv.status === 'paid' ? 'badge-success' : inv.status === 'partial' ? 'badge-warning' : 'badge-critical'}>
-                              {inv.status === 'paid' ? 'Paid' : inv.status === 'partial' ? 'Partial' : 'Pending'}
+                              {inv.status === 'paid' ? t('paid') : inv.status === 'partial' ? t('partial') : t('pending')}
                             </span>
                           </div>
                         </div>
@@ -179,13 +179,13 @@ export default function UserDashboard() {
                 {lowStockProducts.length > 0 && (
                   <div className="glass-card p-4 md:p-5">
                     <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 text-warning" /> Low Stock Alerts
+                      <AlertTriangle className="w-4 h-4 text-warning" /> {t('lowStockAlerts')}
                     </h3>
                     <div className="space-y-2">
                       {lowStockProducts.map(p => (
                         <div key={p.id} className="flex items-center justify-between py-1.5 text-sm gap-2">
                           <span className="text-foreground truncate">{p.name}</span>
-                          <span className="badge-critical shrink-0">{p.stock} {p.unit} bache</span>
+                          <span className="badge-critical shrink-0">{p.stock} {p.unit} {t('remaining')}</span>
                         </div>
                       ))}
                     </div>
@@ -226,12 +226,11 @@ export default function UserDashboard() {
                 className={`flex flex-col items-center justify-center gap-0.5 flex-1 min-h-[44px] ${moreTabs.some(t => t.id === activeTab) ? 'text-primary' : 'text-muted-foreground'}`}>
                 {moreTabs.some(t => t.id === activeTab) && <div className="absolute top-0 left-2 right-2 h-0.5 bg-primary rounded-b" />}
                 <Menu className="w-5 h-5" />
-                <span className="text-[10px] leading-tight">More</span>
+                <span className="text-[10px] leading-tight">{t('more')}</span>
               </button>
             </div>
           </nav>
 
-          {/* More Drawer */}
           {moreOpen && (
             <>
               <div className="fixed inset-0 bg-foreground/30 z-40 animate-fade-in" onClick={() => setMoreOpen(false)} />
@@ -250,7 +249,7 @@ export default function UserDashboard() {
                   <button onClick={() => { setMoreOpen(false); setCurrentUser(null); }}
                     className="flex flex-col items-center gap-2 p-3 rounded-xl text-muted-foreground hover:bg-muted min-h-[44px]">
                     <LogOut className="w-5 h-5" />
-                    <span className="text-xs font-medium">Logout</span>
+                    <span className="text-xs font-medium">{t('logout')}</span>
                   </button>
                 </div>
               </div>

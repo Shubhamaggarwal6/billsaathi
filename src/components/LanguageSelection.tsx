@@ -8,6 +8,7 @@ const languages: { id: Language; flag: string; label: string; sample: string }[]
   { id: 'en', flag: '🇬🇧', label: 'English', sample: 'Welcome to BillSaathi' },
   { id: 'hi', flag: '🇮🇳', label: 'हिन्दी', sample: 'बिलसाथी में आपका स्वागत है' },
   { id: 'hinglish', flag: '🇮🇳', label: 'Hinglish', sample: 'Aapka Swagat Hai BillSaathi Mein' },
+  { id: 'gu', flag: '🇮🇳', label: 'ગુજરાતી', sample: 'BillSaathi માં આપનું સ્વાગત છે' },
 ];
 
 export default function LanguageSelection() {
@@ -62,7 +63,7 @@ export default function LanguageSelection() {
             onClick={() => setLanguage(selected)}
             className="w-full mt-6 h-12 text-base font-semibold animate-fade-in"
           >
-            {selected === 'hi' ? 'पक्का करें ✅' : selected === 'en' ? 'Confirm ✅' : 'Pakka Karein ✅'}
+            {selected === 'hi' ? 'पक्का करें ✅' : selected === 'gu' ? 'પાક્કું કરો ✅' : selected === 'en' ? 'Confirm ✅' : 'Pakka Karein ✅'}
           </Button>
         )}
       </div>
