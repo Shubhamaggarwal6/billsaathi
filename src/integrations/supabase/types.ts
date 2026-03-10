@@ -701,6 +701,7 @@ export type Database = {
           hsn_code: string | null
           id: string
           is_deleted: boolean | null
+          last_purchase_rate: number | null
           min_stock_level: number | null
           name: string
           price: number
@@ -715,6 +716,7 @@ export type Database = {
           hsn_code?: string | null
           id?: string
           is_deleted?: boolean | null
+          last_purchase_rate?: number | null
           min_stock_level?: number | null
           name: string
           price?: number
@@ -729,6 +731,7 @@ export type Database = {
           hsn_code?: string | null
           id?: string
           is_deleted?: boolean | null
+          last_purchase_rate?: number | null
           min_stock_level?: number | null
           name?: string
           price?: number
@@ -759,6 +762,7 @@ export type Database = {
           is_deleted: boolean | null
           sgst: number | null
           supplier_gst: string | null
+          supplier_id: string | null
           supplier_name: string
           taxable_amount: number | null
           tenant_id: string
@@ -776,6 +780,7 @@ export type Database = {
           is_deleted?: boolean | null
           sgst?: number | null
           supplier_gst?: string | null
+          supplier_id?: string | null
           supplier_name: string
           taxable_amount?: number | null
           tenant_id: string
@@ -793,6 +798,7 @@ export type Database = {
           is_deleted?: boolean | null
           sgst?: number | null
           supplier_gst?: string | null
+          supplier_id?: string | null
           supplier_name?: string
           taxable_amount?: number | null
           tenant_id?: string
@@ -801,7 +807,82 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "purchases_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "purchases_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suppliers: {
+        Row: {
+          address: string | null
+          bank_account: string | null
+          bank_ifsc: string | null
+          bank_name: string | null
+          city: string | null
+          created_at: string
+          email: string | null
+          gst_number: string | null
+          id: string
+          is_deleted: boolean | null
+          name: string
+          opening_balance: number | null
+          phone: string | null
+          pin: string | null
+          state: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          bank_account?: string | null
+          bank_ifsc?: string | null
+          bank_name?: string | null
+          city?: string | null
+          created_at?: string
+          email?: string | null
+          gst_number?: string | null
+          id?: string
+          is_deleted?: boolean | null
+          name: string
+          opening_balance?: number | null
+          phone?: string | null
+          pin?: string | null
+          state?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          bank_account?: string | null
+          bank_ifsc?: string | null
+          bank_name?: string | null
+          city?: string | null
+          created_at?: string
+          email?: string | null
+          gst_number?: string | null
+          id?: string
+          is_deleted?: boolean | null
+          name?: string
+          opening_balance?: number | null
+          phone?: string | null
+          pin?: string | null
+          state?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suppliers_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
