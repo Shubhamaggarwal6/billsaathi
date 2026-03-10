@@ -499,8 +499,8 @@ export default function ChatbotInvoice() {
     setMessages([{
       from: 'bot',
       text: '🙏 ' + t('chatWelcome'),
-      options: [t('btnOldCustomer'), t('btnNewCustomer')],
-      optionKeys: ['btnOldCustomer', 'btnNewCustomer'],
+      options: ['🧾 Invoice Banao', '📋 Credit Note Banao', '📋 Debit Note Banao'],
+      optionKeys: ['startInvoice', 'startCreditNote', 'startDebitNote'],
     }]);
     setStep('select-customer');
     setPanelMode('chat');
@@ -515,6 +515,7 @@ export default function ChatbotInvoice() {
     setEditField(null);
     setEditInput('');
     setLastCreatedInvoice(null);
+    setDocType('invoice');
   };
 
   const printInvoice = () => {
