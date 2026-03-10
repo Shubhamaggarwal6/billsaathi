@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import SyncStatusBadge from '@/components/SyncStatusBadge';
 
-type Tab = 'dashboard' | 'chatbot' | 'invoices' | 'credit-notes' | 'debit-notes' | 'customers' | 'products' | 'reports' | 'employees' | 'settings' | 'purchases';
+type Tab = 'dashboard' | 'chatbot' | 'invoices' | 'credit-notes' | 'debit-notes' | 'customers' | 'products' | 'suppliers' | 'reports' | 'employees' | 'settings' | 'purchases';
 
 export default function UserDashboard() {
   const { currentUser, users, invoices, products, customers, setCurrentUser } = useApp();
