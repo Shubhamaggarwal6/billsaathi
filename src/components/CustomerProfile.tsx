@@ -14,7 +14,7 @@ interface Props {
 }
 
 export default function CustomerProfile({ customer, onBack, readOnly }: Props) {
-  const { currentUser, users, invoices, payments, setInvoices, setPayments } = useApp();
+  const { currentUser, users, invoices, payments, creditNotes, debitNotes, setInvoices, setPayments } = useApp();
   const [activeTab, setActiveTab] = useState<'invoices' | 'ledger'>('invoices');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -40,9 +40,11 @@ export default function CustomerProfile({ customer, onBack, readOnly }: Props) {
   }, [payments, customer.id, dateFrom, dateTo]);
 
   const totalPurchased = customerInvoices.reduce((s, i) => s + i.grandTotal, 0);
+  const totalCreditNotes = creditNotes.filter(cn => cn.customerId === customer.id && cn.status !== 'cancelled').reduce((s, cn) => s + cn.total, 0);
+  const totalDebitNotesUnpaid = debitNotes.filter(dn => dn.customerId === customer.id && dn.status === 'active').reduce((s, dn) => s + dn.total, 0);
   const totalPaid = customerPayments.reduce((s, p) => s + p.amount, 0) +
     customerInvoices.filter(i => i.status === 'paid').reduce((s, i) => s + i.grandTotal, 0);
-  const totalPending = totalPurchased - totalPaid;
+  const totalPending = totalPurchased - totalPaid - totalCreditNotes;
   const lastPurchase = customerInvoices.length > 0 ? customerInvoices.sort((a, b) => b.date.localeCompare(a.date))[0] : null;
   const lastPurchaseDays = lastPurchase ? Math.ceil((Date.now() - new Date(lastPurchase.date).getTime()) / 86400000) : null;
 
@@ -77,17 +79,37 @@ export default function CustomerProfile({ customer, onBack, readOnly }: Props) {
     setShowStatusModal(null);
   };
 
+  const customerCreditNotes = useMemo(() => {
+    let cns = creditNotes.filter(cn => cn.customerId === customer.id && cn.status !== 'cancelled');
+    if (dateFrom) cns = cns.filter(cn => cn.date >= dateFrom);
+    if (dateTo) cns = cns.filter(cn => cn.date <= dateTo);
+    return cns;
+  }, [creditNotes, customer.id, dateFrom, dateTo]);
+
+  const customerDebitNotes = useMemo(() => {
+    let dns = debitNotes.filter(dn => dn.customerId === customer.id && dn.status !== 'cancelled');
+    if (dateFrom) dns = dns.filter(dn => dn.date >= dateFrom);
+    if (dateTo) dns = dns.filter(dn => dn.date <= dateTo);
+    return dns;
+  }, [debitNotes, customer.id, dateFrom, dateTo]);
+
   // Ledger entries
   const ledgerEntries = useMemo(() => {
-    const entries: { date: string; description: string; debit: number; credit: number }[] = [];
+    const entries: { date: string; description: string; debit: number; credit: number; type: 'invoice' | 'payment' | 'credit_note' | 'debit_note'; ref?: string }[] = [];
     customerInvoices.forEach(inv => {
-      entries.push({ date: inv.date, description: inv.invoiceNumber, debit: inv.grandTotal, credit: 0 });
+      entries.push({ date: inv.date, description: inv.invoiceNumber, debit: inv.grandTotal, credit: 0, type: 'invoice' });
     });
     customerPayments.forEach(pay => {
-      entries.push({ date: pay.date, description: `Payment (${pay.mode})${pay.note ? ' - ' + pay.note : ''}`, debit: 0, credit: pay.amount });
+      entries.push({ date: pay.date, description: `Payment (${pay.mode})${pay.note ? ' - ' + pay.note : ''}`, debit: 0, credit: pay.amount, type: 'payment' });
+    });
+    customerCreditNotes.forEach(cn => {
+      entries.push({ date: cn.date, description: cn.creditNoteNumber, debit: 0, credit: cn.total, type: 'credit_note', ref: cn.originalInvoiceNumber ? `Against: ${cn.originalInvoiceNumber}` : undefined });
+    });
+    customerDebitNotes.forEach(dn => {
+      entries.push({ date: dn.date, description: dn.debitNoteNumber, debit: dn.total, credit: 0, type: 'debit_note', ref: dn.originalInvoiceNumber ? `Balance: ${dn.originalInvoiceNumber}` : undefined });
     });
     return entries.sort((a, b) => a.date.localeCompare(b.date));
-  }, [customerInvoices, customerPayments]);
+  }, [customerInvoices, customerPayments, customerCreditNotes, customerDebitNotes]);
 
   const firm = currentUser?.role === 'employee' ? users.find(u => u.id === currentUser.parentUserId) : currentUser;
 
@@ -314,12 +336,27 @@ export default function CustomerProfile({ customer, onBack, readOnly }: Props) {
             <tbody>
               {(() => {
                 let balance = 0;
+                const rowBg: Record<string, string> = {
+                  invoice: '',
+                  payment: 'bg-blue-50 dark:bg-blue-950/20',
+                  credit_note: 'bg-green-50 dark:bg-green-950/20',
+                  debit_note: 'bg-red-50 dark:bg-red-950/20',
+                };
+                const typeIcon: Record<string, string> = {
+                  invoice: '🧾',
+                  payment: '💰',
+                  credit_note: '📗',
+                  debit_note: '📕',
+                };
                 return ledgerEntries.map((entry, i) => {
                   balance += entry.debit - entry.credit;
                   return (
-                    <tr key={i} className="border-b hover:bg-muted/30 transition-colors">
+                    <tr key={i} className={`border-b hover:bg-muted/30 transition-colors ${rowBg[entry.type] || ''}`}>
                       <td className="py-2.5 px-3 text-muted-foreground text-xs">{formatDate(entry.date)}</td>
-                      <td className="py-2.5 px-3 text-foreground">{entry.description}</td>
+                      <td className="py-2.5 px-3">
+                        <span className="text-foreground">{typeIcon[entry.type]} {entry.description}</span>
+                        {entry.ref && <p className="text-xs text-muted-foreground">{entry.ref}</p>}
+                      </td>
                       <td className="py-2.5 px-3 text-right text-critical">{entry.debit > 0 ? `₹${entry.debit.toLocaleString('en-IN')}` : ''}</td>
                       <td className="py-2.5 px-3 text-right text-success">{entry.credit > 0 ? `₹${entry.credit.toLocaleString('en-IN')}` : ''}</td>
                       <td className={`py-2.5 px-3 text-right font-medium ${balance > 0 ? 'text-critical' : 'text-success'}`}>₹{Math.abs(balance).toLocaleString('en-IN')}</td>
