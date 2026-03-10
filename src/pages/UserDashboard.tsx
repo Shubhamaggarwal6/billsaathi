@@ -15,21 +15,23 @@ import PurchaseRegister from '@/components/PurchaseRegister';
 import CreditNotesList from '@/components/CreditNotesList';
 import DebitNotesList from '@/components/DebitNotesList';
 import SupplierManager from '@/components/SupplierManager';
+import CollectionsList from '@/components/CollectionsList';
+import InvoiceDetailModal from '@/components/InvoiceDetailModal';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
   LayoutDashboard, MessageSquare, Users, Package, BarChart3,
-  UserPlus, Settings, LogOut, FileText, AlertTriangle, ClipboardList, ShoppingCart, Menu, X, CreditCard, Receipt, Factory
+  UserPlus, Settings, LogOut, FileText, AlertTriangle, ClipboardList, ShoppingCart, Menu, X, CreditCard, Receipt, Factory, Wallet
 } from 'lucide-react';
-import SyncStatusBadge from '@/components/SyncStatusBadge';
 
-type Tab = 'dashboard' | 'chatbot' | 'invoices' | 'credit-notes' | 'debit-notes' | 'customers' | 'products' | 'suppliers' | 'reports' | 'employees' | 'settings' | 'purchases';
+type Tab = 'dashboard' | 'chatbot' | 'invoices' | 'collections' | 'credit-notes' | 'debit-notes' | 'customers' | 'products' | 'suppliers' | 'reports' | 'employees' | 'settings' | 'purchases';
 
 export default function UserDashboard() {
-  const { currentUser, users, invoices, products, customers, setCurrentUser } = useApp();
+  const { currentUser, users, invoices, products, customers, payments, setCurrentUser } = useApp();
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [viewInvoice, setViewInvoice] = useState<any>(null);
   const isMobile = useIsMobile();
 
   if (!currentUser) return null;
@@ -37,15 +39,29 @@ export default function UserDashboard() {
   const sub = getSubscriptionStatus(currentUser.subscriptionEnd);
   const myInvoices = invoices.filter(i => i.userId === currentUser.id);
   const myProducts = products.filter(p => p.userId === currentUser.id);
-  const todaySales = myInvoices.filter(i => i.date === new Date().toISOString().split('T')[0]).reduce((s, i) => s + i.grandTotal, 0);
-  const totalPending = myInvoices.filter(i => i.status !== 'paid').reduce((s, i) => s + i.grandTotal, 0);
-  const totalRevenue = myInvoices.reduce((s, i) => s + i.grandTotal, 0);
+  const today = new Date().toISOString().split('T')[0];
+  
+  // Today only
+  const todayInvoices = myInvoices.filter(i => i.date === today);
+  const todaySales = todayInvoices.reduce((s, i) => s + i.grandTotal, 0);
+  const todayCount = todayInvoices.length;
+  const todayPayments = payments.filter(p => p.userId === currentUser.id && p.date === today);
+  const todayCollection = todayPayments.reduce((s, p) => s + p.amount, 0);
+  const todayPaid = todayInvoices.filter(i => i.status === 'paid').length;
+
+  // Monthly summary
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const monthInvoices = myInvoices.filter(i => i.date.startsWith(thisMonth));
+  const monthRevenue = monthInvoices.reduce((s, i) => s + i.grandTotal, 0);
+  const monthPending = monthInvoices.filter(i => i.status !== 'paid').reduce((s, i) => s + i.grandTotal - (i.paidAmount || 0), 0);
+
   const lowStockProducts = myProducts.filter(p => p.stock <= p.lowStockThreshold);
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'dashboard', label: t('dashboard'), icon: <LayoutDashboard className="w-5 h-5" /> },
     { id: 'chatbot', label: t('createInvoice'), icon: <MessageSquare className="w-5 h-5" /> },
     { id: 'invoices', label: t('invoices'), icon: <ClipboardList className="w-5 h-5" /> },
+    { id: 'collections', label: 'Collections', icon: <Wallet className="w-5 h-5" /> },
     { id: 'credit-notes', label: 'Credit Notes', icon: <CreditCard className="w-5 h-5" /> },
     { id: 'debit-notes', label: 'Debit Notes', icon: <Receipt className="w-5 h-5" /> },
     { id: 'customers', label: t('customers'), icon: <Users className="w-5 h-5" /> },
@@ -85,9 +101,8 @@ export default function UserDashboard() {
                 <p className="text-xs text-sidebar-foreground/60">{currentUser.plan} {t('plan')}</p>
               </div>
             </div>
-            <div className="mt-3 flex items-center justify-between gap-2 min-w-0 overflow-hidden">
+            <div className="mt-3">
               <SubscriptionBadge endDate={currentUser.subscriptionEnd} compact />
-              <div className="shrink-0"><SyncStatusBadge tenantId={currentUser.id} /></div>
             </div>
           </div>
           <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
@@ -111,7 +126,7 @@ export default function UserDashboard() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Mobile Top Header — proper flex layout */}
+        {/* Mobile Top Header — no sync badge */}
         {isMobile && (
           <header className="fixed top-0 left-0 right-0 z-30 bg-card border-b flex items-center h-[60px] px-3" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
             <div className="flex items-center gap-2 shrink-0">
@@ -120,9 +135,8 @@ export default function UserDashboard() {
               </div>
               <span className="font-bold text-sm text-foreground">BillSaathi</span>
             </div>
-            <p className="text-xs text-muted-foreground truncate flex-1 text-center min-w-0 px-2">{currentUser.firmName}</p>
+            <p className="text-xs text-muted-foreground truncate flex-1 text-center min-w-0 px-2">{currentUser.firmName.length > 20 ? currentUser.firmName.slice(0, 20) + '…' : currentUser.firmName}</p>
             <div className="flex items-center gap-1 shrink-0">
-              <SyncStatusBadge tenantId={currentUser.id} />
               <button onClick={() => switchTab('settings')} className="p-2 text-muted-foreground min-w-[32px] min-h-[32px] flex items-center justify-center">
                 <Settings className="w-5 h-5" />
               </button>
@@ -142,11 +156,19 @@ export default function UserDashboard() {
             {activeTab === 'dashboard' && (
               <div className="space-y-4 animate-fade-in">
                 <h2 className="text-lg md:text-xl font-bold text-foreground">{t('dashboard')}</h2>
+                
+                {/* Today's stats */}
                 <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
-                  <div className="stat-card"><p className="text-[10px] md:text-xs text-muted-foreground">{t('todaySales')}</p><p className="text-lg md:text-2xl font-bold text-foreground">₹{todaySales.toLocaleString('en-IN')}</p></div>
-                  <div className="stat-card"><p className="text-[10px] md:text-xs text-muted-foreground">{t('totalPending')}</p><p className="text-lg md:text-2xl font-bold text-warning">₹{totalPending.toLocaleString('en-IN')}</p></div>
-                  <div className="stat-card"><p className="text-[10px] md:text-xs text-muted-foreground">{t('totalRevenue')}</p><p className="text-lg md:text-2xl font-bold text-success">₹{totalRevenue.toLocaleString('en-IN')}</p></div>
-                  <div className="stat-card"><p className="text-[10px] md:text-xs text-muted-foreground">{t('totalInvoices')}</p><p className="text-lg md:text-2xl font-bold text-foreground">{myInvoices.length}</p></div>
+                  <div className="stat-card"><p className="text-[10px] md:text-xs text-muted-foreground">Aaj ki Bikri</p><p className="text-lg md:text-2xl font-bold text-foreground">₹{todaySales.toLocaleString('en-IN')}</p></div>
+                  <div className="stat-card"><p className="text-[10px] md:text-xs text-muted-foreground">Aaj ke Invoice</p><p className="text-lg md:text-2xl font-bold text-foreground">{todayCount}</p></div>
+                  <div className="stat-card"><p className="text-[10px] md:text-xs text-muted-foreground">Aaj ka Collection</p><p className="text-lg md:text-2xl font-bold text-success">₹{todayCollection.toLocaleString('en-IN')}</p></div>
+                  <div className="stat-card"><p className="text-[10px] md:text-xs text-muted-foreground">Aaj ke Paid</p><p className="text-lg md:text-2xl font-bold text-foreground">{todayPaid}</p></div>
+                </div>
+
+                {/* Monthly summary */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="stat-card"><p className="text-[10px] md:text-xs text-muted-foreground">This Month Revenue</p><p className="text-lg font-bold text-foreground">₹{monthRevenue.toLocaleString('en-IN')}</p></div>
+                  <div className="stat-card"><p className="text-[10px] md:text-xs text-muted-foreground">This Month Pending</p><p className="text-lg font-bold text-warning">₹{monthPending.toLocaleString('en-IN')}</p></div>
                 </div>
 
                 <div className="glass-card p-4 md:p-5">
@@ -158,6 +180,7 @@ export default function UserDashboard() {
                   </div>
                 </div>
 
+                {/* Recent Invoices — clickable */}
                 <div className="glass-card p-4 md:p-5">
                   <h3 className="text-sm font-semibold text-foreground mb-3">{t('recentInvoices')}</h3>
                   {myInvoices.length === 0 ? (
@@ -165,10 +188,16 @@ export default function UserDashboard() {
                   ) : (
                     <div className="space-y-2">
                       {myInvoices.slice(-5).reverse().map(inv => (
-                        <div key={inv.id} className="flex items-center justify-between py-2 border-b last:border-0 gap-2">
+                        <button key={inv.id} onClick={() => setViewInvoice(inv)}
+                          className="w-full flex items-center justify-between py-2 border-b last:border-0 gap-2 hover:bg-muted/30 rounded px-1 transition-colors text-left">
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-foreground truncate">{inv.invoiceNumber}</p>
-                            <p className="text-xs text-muted-foreground truncate">{inv.customerName} • {formatDate(inv.date)}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {inv.customerName} • {formatDate(inv.date)}
+                              {inv.createdBy?.timestamp && (
+                                <span className="ml-1">• {new Date(inv.createdBy.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+                              )}
+                            </p>
                           </div>
                           <div className="text-right shrink-0">
                             <p className="text-sm font-medium text-foreground">₹{inv.grandTotal.toLocaleString('en-IN')}</p>
@@ -176,8 +205,11 @@ export default function UserDashboard() {
                               {inv.status === 'paid' ? t('paid') : inv.status === 'partial' ? t('partial') : t('pending')}
                             </span>
                           </div>
-                        </div>
+                        </button>
                       ))}
+                      <button onClick={() => switchTab('invoices')} className="text-xs text-primary hover:underline w-full text-center pt-1">
+                        Sab Invoices Dekho →
+                      </button>
                     </div>
                   )}
                 </div>
@@ -202,6 +234,7 @@ export default function UserDashboard() {
 
             {activeTab === 'chatbot' && <ChatbotInvoice />}
             {activeTab === 'invoices' && <InvoiceList />}
+            {activeTab === 'collections' && <CollectionsList />}
             {activeTab === 'credit-notes' && <CreditNotesList />}
             {activeTab === 'debit-notes' && <DebitNotesList />}
             {activeTab === 'customers' && <CustomerManager />}
@@ -214,6 +247,15 @@ export default function UserDashboard() {
           </div>
         </main>
       </div>
+
+      {/* Invoice detail modal from dashboard */}
+      {viewInvoice && (
+        <div className="fixed inset-0 bg-foreground/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="glass-card w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+            <InvoiceDetailModal invoice={viewInvoice} onClose={() => setViewInvoice(null)} />
+          </div>
+        </div>
+      )}
 
       {/* Mobile Bottom Navigation */}
       {isMobile && (
