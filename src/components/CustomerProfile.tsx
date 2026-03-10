@@ -77,17 +77,37 @@ export default function CustomerProfile({ customer, onBack, readOnly }: Props) {
     setShowStatusModal(null);
   };
 
+  const customerCreditNotes = useMemo(() => {
+    let cns = creditNotes.filter(cn => cn.customerId === customer.id && cn.status !== 'cancelled');
+    if (dateFrom) cns = cns.filter(cn => cn.date >= dateFrom);
+    if (dateTo) cns = cns.filter(cn => cn.date <= dateTo);
+    return cns;
+  }, [creditNotes, customer.id, dateFrom, dateTo]);
+
+  const customerDebitNotes = useMemo(() => {
+    let dns = debitNotes.filter(dn => dn.customerId === customer.id && dn.status !== 'cancelled');
+    if (dateFrom) dns = dns.filter(dn => dn.date >= dateFrom);
+    if (dateTo) dns = dns.filter(dn => dn.date <= dateTo);
+    return dns;
+  }, [debitNotes, customer.id, dateFrom, dateTo]);
+
   // Ledger entries
   const ledgerEntries = useMemo(() => {
-    const entries: { date: string; description: string; debit: number; credit: number }[] = [];
+    const entries: { date: string; description: string; debit: number; credit: number; type: 'invoice' | 'payment' | 'credit_note' | 'debit_note'; ref?: string }[] = [];
     customerInvoices.forEach(inv => {
-      entries.push({ date: inv.date, description: inv.invoiceNumber, debit: inv.grandTotal, credit: 0 });
+      entries.push({ date: inv.date, description: inv.invoiceNumber, debit: inv.grandTotal, credit: 0, type: 'invoice' });
     });
     customerPayments.forEach(pay => {
-      entries.push({ date: pay.date, description: `Payment (${pay.mode})${pay.note ? ' - ' + pay.note : ''}`, debit: 0, credit: pay.amount });
+      entries.push({ date: pay.date, description: `Payment (${pay.mode})${pay.note ? ' - ' + pay.note : ''}`, debit: 0, credit: pay.amount, type: 'payment' });
+    });
+    customerCreditNotes.forEach(cn => {
+      entries.push({ date: cn.date, description: cn.creditNoteNumber, debit: 0, credit: cn.total, type: 'credit_note', ref: cn.originalInvoiceNumber ? `Against: ${cn.originalInvoiceNumber}` : undefined });
+    });
+    customerDebitNotes.forEach(dn => {
+      entries.push({ date: dn.date, description: dn.debitNoteNumber, debit: dn.total, credit: 0, type: 'debit_note', ref: dn.originalInvoiceNumber ? `Balance: ${dn.originalInvoiceNumber}` : undefined });
     });
     return entries.sort((a, b) => a.date.localeCompare(b.date));
-  }, [customerInvoices, customerPayments]);
+  }, [customerInvoices, customerPayments, customerCreditNotes, customerDebitNotes]);
 
   const firm = currentUser?.role === 'employee' ? users.find(u => u.id === currentUser.parentUserId) : currentUser;
 
