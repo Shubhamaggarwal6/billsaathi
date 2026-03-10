@@ -141,11 +141,62 @@ export default function ReportsPanel() {
 
   const reportTabs = [
     { id: 'overview' as const, label: '📊 Overview' },
+    { id: 'profit' as const, label: '💰 P&L' },
     { id: 'gstr1' as const, label: '📋 GSTR-1' },
     { id: 'gstr3b' as const, label: '📋 GSTR-3B' },
     { id: 'monthly' as const, label: '📅 Monthly' },
     { id: 'outstanding' as const, label: '💰 Outstanding' },
   ];
+
+  // Profit calculation
+  const productProfitData = useMemo(() => {
+    const productSales: Record<string, { name: string; hsn: string; qtySold: number; revenue: number; sellingRates: number[]; purchaseRate: number | null }> = {};
+    myInvoices.forEach(inv => inv.items.forEach(it => {
+      if (!productSales[it.productName]) {
+        const prod = myProducts.find(p => p.name === it.productName);
+        productSales[it.productName] = { name: it.productName, hsn: it.hsn, qtySold: 0, revenue: 0, sellingRates: [], purchaseRate: null };
+      }
+      productSales[it.productName].qtySold += it.quantity;
+      productSales[it.productName].revenue += it.price * it.quantity;
+      productSales[it.productName].sellingRates.push(it.price);
+    }));
+    // Try to find purchase rates from purchases
+    myPurchases.forEach(p => {
+      if (productSales[p.description]) {
+        // approximate: taxable / assumed qty
+      }
+    });
+    return Object.values(productSales).map(ps => {
+      const avgSellingRate = ps.sellingRates.length > 0 ? ps.revenue / ps.qtySold : 0;
+      // Find product to get last_purchase_rate
+      const prod = myProducts.find(p => p.name === ps.name);
+      const purchaseRate = ps.purchaseRate;
+      const cost = purchaseRate !== null ? purchaseRate * ps.qtySold : null;
+      const profit = cost !== null ? ps.revenue - cost : null;
+      const margin = profit !== null && ps.revenue > 0 ? (profit / ps.revenue) * 100 : null;
+      return { ...ps, avgSellingRate, avgPurchaseRate: purchaseRate, cost, profit, margin };
+    }).sort((a, b) => (b.profit ?? 0) - (a.profit ?? 0));
+  }, [myInvoices, myProducts, myPurchases]);
+
+  const totalRevenuePL = productProfitData.reduce((s, p) => s + p.revenue, 0);
+  const totalCost = productProfitData.filter(p => p.cost !== null).reduce((s, p) => s + (p.cost || 0), 0);
+  const totalProfit = totalRevenuePL - totalCost;
+  const totalMargin = totalRevenuePL > 0 ? (totalProfit / totalRevenuePL) * 100 : 0;
+
+  // Monthly profit trend
+  const monthlyTrend = useMemo(() => {
+    const months: Record<string, { revenue: number; cost: number }> = {};
+    myInvoices.forEach(inv => {
+      const m = inv.date.substring(0, 7); // YYYY-MM
+      if (!months[m]) months[m] = { revenue: 0, cost: 0 };
+      inv.items.forEach(it => {
+        months[m].revenue += it.price * it.quantity;
+      });
+    });
+    return Object.entries(months).sort().slice(-12).map(([month, d]) => ({
+      month: month.substring(5), revenue: d.revenue, cost: d.cost, profit: d.revenue - d.cost,
+    }));
+  }, [myInvoices]);
 
   const chartHeight = isMobile ? 160 : 200;
 
