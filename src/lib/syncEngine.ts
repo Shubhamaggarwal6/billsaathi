@@ -187,6 +187,10 @@ async function pullChanges(tenantId: string): Promise<void> {
 
 export async function syncNow(tenantId?: string): Promise<void> {
   if (syncInProgress || !navigator.onLine) return;
+  // Skip sync entirely if tenantId is not a valid UUID (demo mode)
+  if (tenantId && !UUID_REGEX.test(tenantId)) {
+    return;
+  }
   syncInProgress = true;
   await notifyListeners();
 
