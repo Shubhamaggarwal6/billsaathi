@@ -548,10 +548,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setSuppliers: React.Dispatch<React.SetStateAction<Supplier[]>> = useCallback((action) => {
     setSuppliersRaw(prev => {
       const next = typeof action === 'function' ? action(prev) : action;
+      const tenantId = currentUser?.id || '';
+      for (const s of next) {
+        const local = toLocalSupplier(s);
+        db.suppliers.put(local).then(() => {
+          const existing = prev.find(x => x.id === s.id);
+          if (!existing) {
+            queueSync('suppliers', s.id, 'CREATE', local);
+          } else {
+            queueSync('suppliers', s.id, 'UPDATE', local);
+          }
+          triggerSync(tenantId);
+        });
+      }
       saveToStorage('bs_suppliers', next);
       return next;
     });
-  }, []);
+  }, [currentUser?.id]);
 
   return (
     <AppContext.Provider value={{
