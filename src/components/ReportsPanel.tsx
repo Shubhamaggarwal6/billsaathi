@@ -19,7 +19,7 @@ export default function ReportsPanel() {
   const { currentUser, users, invoices, products, customers, payments, purchases } = useApp();
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [reportTab, setReportTab] = useState<'overview' | 'gstr1' | 'gstr3b' | 'monthly' | 'outstanding'>('overview');
+  const [reportTab, setReportTab] = useState<'overview' | 'gstr1' | 'gstr3b' | 'monthly' | 'outstanding' | 'profit'>('overview');
   const isMobile = useIsMobile();
 
   const userId = currentUser?.id!;
