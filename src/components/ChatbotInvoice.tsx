@@ -556,45 +556,139 @@ export default function ChatbotInvoice() {
       <div className="glass-card flex-1 flex flex-col overflow-hidden">
         {/* ====== PANEL: PREVIEW ====== */}
         {panelMode === 'preview' && (
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            <h3 className="text-lg font-bold text-foreground">{t('invoicePreview')}</h3>
-
-            <div className="space-y-3">
-              <div className="bg-muted/30 rounded-lg p-3 space-y-1">
-                <p className="text-xs text-muted-foreground">{t('customer')}</p>
-                <p className="text-sm font-medium text-foreground">{selectedCustomer?.name || 'N/A'}</p>
-                {selectedCustomer?.phone && <p className="text-xs text-muted-foreground">{selectedCustomer.phone}</p>}
-                {selectedCustomer?.gstNumber && <p className="text-xs text-muted-foreground">GST: {selectedCustomer.gstNumber}</p>}
-              </div>
-
-              {vehicle && (
-                <div className="bg-muted/30 rounded-lg p-3">
-                  <p className="text-xs text-muted-foreground">{t('vehicle')}</p>
-                  <p className="text-sm font-medium text-foreground">{vehicle}</p>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <p className="text-xs font-semibold text-muted-foreground">{t('products')}</p>
-                {items.map((it, i) => (
-                  <div key={i} className="bg-muted/30 rounded-lg p-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{it.productName} × {it.quantity}</p>
-                      <p className="text-xs text-muted-foreground">
-                        ₹{it.price}/{it.unit} • GST {it.gstPercent}%
-                        {it.mrp && it.mrp !== it.price && ` • MRP ₹${it.mrp}`}
-                      </p>
-                    </div>
-                    <p className="text-sm font-bold text-foreground">₹{(it.price * it.quantity).toLocaleString('en-IN')}</p>
+          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+            {/* Invoice-style preview */}
+            <div className="border border-primary/30 rounded-lg overflow-hidden bg-card text-foreground text-xs">
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-primary/20">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm">₹</div>
+                  <div>
+                    <p className="font-bold text-sm text-primary">BillSaathi</p>
+                    <p className="text-[8px] text-muted-foreground uppercase tracking-wider">Billing Made Easier</p>
                   </div>
-                ))}
+                </div>
+                <div className="text-center">
+                  <p className="text-base font-bold text-primary">TAX INVOICE</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px] text-muted-foreground">Preview</p>
+                </div>
               </div>
 
-              <div className="border-t pt-3 space-y-1">
-                <div className="flex justify-between text-sm"><span className="text-muted-foreground">{t('subtotal')}</span><span className="text-foreground">₹{totalAmount.toLocaleString('en-IN')}</span></div>
-                <div className="flex justify-between text-sm"><span className="text-muted-foreground">GST</span><span className="text-foreground">₹{totalGst.toLocaleString('en-IN')}</span></div>
-                <div className="flex justify-between text-base font-bold border-t pt-2"><span className="text-foreground">{t('grandTotal')}</span><span className="text-primary">₹{grandTotal.toLocaleString('en-IN')}</span></div>
-                <p className="text-xs text-muted-foreground italic">({numberToWords(grandTotal)} {t('rupeesOnly')})</p>
+              {/* Firm + Meta */}
+              <div className="flex justify-between px-4 py-2 border-b border-muted/50 text-[10px]">
+                <div>
+                  <p className="font-bold text-xs">{currentUser?.firmName || 'BillSaathi'}</p>
+                  {currentUser?.firmSettings?.address && <p>{currentUser.firmSettings.address}{currentUser.firmSettings.city ? ', ' + currentUser.firmSettings.city : ''}</p>}
+                  {currentUser?.gstNumber && <p>GSTIN: {currentUser.gstNumber}</p>}
+                  {currentUser?.phone && <p>Phone: {currentUser.phone}</p>}
+                </div>
+                <div className="text-right space-y-0.5">
+                  <div className="bg-primary text-primary-foreground px-2 py-0.5 rounded text-[9px] inline-block">
+                    Amount: <strong>₹{grandTotal.toLocaleString('en-IN')}</strong>
+                  </div>
+                  <p>Date: <strong>{new Date().toLocaleDateString('en-IN')}</strong></p>
+                  {vehicle && <p>Vehicle: <strong>{vehicle}</strong></p>}
+                  {ewayBill && <p>E-Way: <strong>{ewayBill}</strong></p>}
+                </div>
+              </div>
+
+              {/* Client */}
+              <div className="grid grid-cols-2 border-b border-muted/50">
+                <div className="px-4 py-2 border-r border-muted/50">
+                  <p className="text-[8px] text-primary font-bold uppercase tracking-wide mb-1">Client Details</p>
+                  <p className="font-bold text-xs">{selectedCustomer?.name || 'N/A'}</p>
+                  {selectedCustomer?.phone && <p className="text-[10px]">{selectedCustomer.phone}</p>}
+                  {selectedCustomer?.gstNumber && <p className="text-[10px]">GSTIN: {selectedCustomer.gstNumber}</p>}
+                  {selectedCustomer?.address && <p className="text-[10px]">{selectedCustomer.address}</p>}
+                </div>
+                <div className="px-4 py-2">
+                  <p className="text-[8px] text-primary font-bold uppercase tracking-wide mb-1">Ship To</p>
+                  <p className="font-bold text-xs">{selectedCustomer?.name || 'N/A'}</p>
+                  {selectedCustomer?.address && <p className="text-[10px]">{selectedCustomer.address}</p>}
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <table className="w-full text-[10px]">
+                <thead>
+                  <tr className="bg-primary text-primary-foreground">
+                    <th className="px-2 py-1.5 text-left">S.No</th>
+                    <th className="px-2 py-1.5 text-left">Item</th>
+                    <th className="px-2 py-1.5 text-center">HSN</th>
+                    <th className="px-2 py-1.5 text-center">Qty</th>
+                    <th className="px-2 py-1.5 text-right">Rate (₹)</th>
+                    <th className="px-2 py-1.5 text-right">Taxable (₹)</th>
+                    <th className="px-2 py-1.5 text-right">GST</th>
+                    <th className="px-2 py-1.5 text-right">Amount (₹)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((it, i) => {
+                    const taxable = it.price * it.quantity;
+                    const gstAmt = taxable * it.gstPercent / 100;
+                    return (
+                      <tr key={i} className="border-b border-muted/30">
+                        <td className="px-2 py-1.5">{i + 1}</td>
+                        <td className="px-2 py-1.5 font-medium">{it.productName}</td>
+                        <td className="px-2 py-1.5 text-center">{it.hsn}</td>
+                        <td className="px-2 py-1.5 text-center">{it.quantity} {it.unit}</td>
+                        <td className="px-2 py-1.5 text-right">₹{it.price.toLocaleString('en-IN')}</td>
+                        <td className="px-2 py-1.5 text-right">₹{taxable.toLocaleString('en-IN')}</td>
+                        <td className="px-2 py-1.5 text-right">{it.gstPercent}%</td>
+                        <td className="px-2 py-1.5 text-right font-bold">₹{(taxable + gstAmt).toLocaleString('en-IN')}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-primary/30 bg-muted/20">
+                    <td colSpan={5} className="px-2 py-1.5 text-right font-bold">Total</td>
+                    <td className="px-2 py-1.5 text-right font-bold">₹{totalAmount.toLocaleString('en-IN')}</td>
+                    <td className="px-2 py-1.5 text-right font-bold">₹{totalGst.toLocaleString('en-IN')}</td>
+                    <td className="px-2 py-1.5 text-right font-bold text-primary">₹{grandTotal.toLocaleString('en-IN')}</td>
+                  </tr>
+                </tfoot>
+              </table>
+
+              {/* Totals Summary */}
+              <div className="flex justify-between px-4 py-2 border-t border-muted/50 text-[10px]">
+                <div>
+                  {currentUser?.firmSettings?.bankName && (
+                    <>
+                      <p className="font-bold text-[9px] text-primary mb-0.5">Bank Details</p>
+                      <p>Bank: {currentUser.firmSettings.bankName}</p>
+                      <p>A/C: {currentUser.firmSettings.accountNumber}</p>
+                      <p>IFSC: {currentUser.firmSettings.ifscCode}</p>
+                    </>
+                  )}
+                </div>
+                <div className="text-right space-y-0.5">
+                  <p>Taxable Value: <strong>₹{totalAmount.toLocaleString('en-IN')}</strong></p>
+                  <p>Tax Amount: <strong>₹{totalGst.toLocaleString('en-IN')}</strong></p>
+                  <p className="text-sm font-bold text-primary border-t border-primary/20 pt-1">
+                    Grand Total: ₹{grandTotal.toLocaleString('en-IN')}
+                  </p>
+                  <p className="italic text-[9px] text-muted-foreground">₹ {numberToWords(grandTotal)} Only</p>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-4 py-2 border-t border-muted/50 flex justify-between items-end text-[9px]">
+                <div className="text-muted-foreground">
+                  <p className="font-bold text-foreground mb-0.5">Terms & Conditions</p>
+                  <p>1. Goods once sold will not be taken back.</p>
+                  <p>2. E&OE</p>
+                </div>
+                <div className="text-right">
+                  <p className="italic text-muted-foreground">Signature</p>
+                  <p className="font-bold text-foreground text-[10px] mt-3">For, {currentUser?.firmName || 'BillSaathi'}</p>
+                </div>
+              </div>
+
+              <div className="text-center text-[8px] text-muted-foreground py-1 border-t border-muted/50">
+                Generated by <strong>BillSaathi</strong>
               </div>
             </div>
 
