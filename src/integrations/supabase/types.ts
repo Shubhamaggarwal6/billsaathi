@@ -14,6 +14,167 @@ export type Database = {
   }
   public: {
     Tables: {
+      credit_note_items: {
+        Row: {
+          cgst_amount: number | null
+          created_at: string
+          credit_note_id: string
+          gst_rate: number | null
+          hsn_code: string | null
+          id: string
+          igst_amount: number | null
+          product_id: string | null
+          product_name: string
+          quantity: number
+          rate: number
+          sgst_amount: number | null
+          taxable_amount: number | null
+          total_amount: number | null
+          updated_at: string
+        }
+        Insert: {
+          cgst_amount?: number | null
+          created_at?: string
+          credit_note_id: string
+          gst_rate?: number | null
+          hsn_code?: string | null
+          id?: string
+          igst_amount?: number | null
+          product_id?: string | null
+          product_name: string
+          quantity?: number
+          rate?: number
+          sgst_amount?: number | null
+          taxable_amount?: number | null
+          total_amount?: number | null
+          updated_at?: string
+        }
+        Update: {
+          cgst_amount?: number | null
+          created_at?: string
+          credit_note_id?: string
+          gst_rate?: number | null
+          hsn_code?: string | null
+          id?: string
+          igst_amount?: number | null
+          product_id?: string | null
+          product_name?: string
+          quantity?: number
+          rate?: number
+          sgst_amount?: number | null
+          taxable_amount?: number | null
+          total_amount?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_note_items_credit_note_id_fkey"
+            columns: ["credit_note_id"]
+            isOneToOne: false
+            referencedRelation: "credit_notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_note_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credit_notes: {
+        Row: {
+          cgst: number | null
+          created_at: string
+          created_by: string | null
+          credit_note_date: string
+          credit_note_number: string
+          customer_id: string | null
+          customer_name: string
+          id: string
+          igst: number | null
+          is_deleted: boolean | null
+          original_invoice_id: string | null
+          reason: string | null
+          sgst: number | null
+          status: string | null
+          subtotal: number | null
+          tenant_id: string
+          total: number | null
+          updated_at: string
+        }
+        Insert: {
+          cgst?: number | null
+          created_at?: string
+          created_by?: string | null
+          credit_note_date?: string
+          credit_note_number: string
+          customer_id?: string | null
+          customer_name: string
+          id?: string
+          igst?: number | null
+          is_deleted?: boolean | null
+          original_invoice_id?: string | null
+          reason?: string | null
+          sgst?: number | null
+          status?: string | null
+          subtotal?: number | null
+          tenant_id: string
+          total?: number | null
+          updated_at?: string
+        }
+        Update: {
+          cgst?: number | null
+          created_at?: string
+          created_by?: string | null
+          credit_note_date?: string
+          credit_note_number?: string
+          customer_id?: string | null
+          customer_name?: string
+          id?: string
+          igst?: number | null
+          is_deleted?: boolean | null
+          original_invoice_id?: string | null
+          reason?: string | null
+          sgst?: number | null
+          status?: string | null
+          subtotal?: number | null
+          tenant_id?: string
+          total?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_notes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_notes_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_notes_original_invoice_id_fkey"
+            columns: ["original_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_notes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           address: string | null
@@ -66,6 +227,167 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "customers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      debit_note_items: {
+        Row: {
+          cgst_amount: number | null
+          created_at: string
+          debit_note_id: string
+          gst_rate: number | null
+          hsn_code: string | null
+          id: string
+          igst_amount: number | null
+          product_id: string | null
+          product_name: string
+          quantity: number
+          rate: number
+          sgst_amount: number | null
+          taxable_amount: number | null
+          total_amount: number | null
+          updated_at: string
+        }
+        Insert: {
+          cgst_amount?: number | null
+          created_at?: string
+          debit_note_id: string
+          gst_rate?: number | null
+          hsn_code?: string | null
+          id?: string
+          igst_amount?: number | null
+          product_id?: string | null
+          product_name: string
+          quantity?: number
+          rate?: number
+          sgst_amount?: number | null
+          taxable_amount?: number | null
+          total_amount?: number | null
+          updated_at?: string
+        }
+        Update: {
+          cgst_amount?: number | null
+          created_at?: string
+          debit_note_id?: string
+          gst_rate?: number | null
+          hsn_code?: string | null
+          id?: string
+          igst_amount?: number | null
+          product_id?: string | null
+          product_name?: string
+          quantity?: number
+          rate?: number
+          sgst_amount?: number | null
+          taxable_amount?: number | null
+          total_amount?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "debit_note_items_debit_note_id_fkey"
+            columns: ["debit_note_id"]
+            isOneToOne: false
+            referencedRelation: "debit_notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "debit_note_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      debit_notes: {
+        Row: {
+          cgst: number | null
+          created_at: string
+          created_by: string | null
+          customer_id: string | null
+          customer_name: string
+          debit_note_date: string
+          debit_note_number: string
+          id: string
+          igst: number | null
+          is_deleted: boolean | null
+          original_invoice_id: string | null
+          reason: string | null
+          sgst: number | null
+          status: string | null
+          subtotal: number | null
+          tenant_id: string
+          total: number | null
+          updated_at: string
+        }
+        Insert: {
+          cgst?: number | null
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          customer_name: string
+          debit_note_date?: string
+          debit_note_number: string
+          id?: string
+          igst?: number | null
+          is_deleted?: boolean | null
+          original_invoice_id?: string | null
+          reason?: string | null
+          sgst?: number | null
+          status?: string | null
+          subtotal?: number | null
+          tenant_id: string
+          total?: number | null
+          updated_at?: string
+        }
+        Update: {
+          cgst?: number | null
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string | null
+          customer_name?: string
+          debit_note_date?: string
+          debit_note_number?: string
+          id?: string
+          igst?: number | null
+          is_deleted?: boolean | null
+          original_invoice_id?: string | null
+          reason?: string | null
+          sgst?: number | null
+          status?: string | null
+          subtotal?: number | null
+          tenant_id?: string
+          total?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "debit_notes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "debit_notes_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "debit_notes_original_invoice_id_fkey"
+            columns: ["original_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "debit_notes_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
