@@ -200,6 +200,8 @@ export default function UserDashboard() {
 
             {activeTab === 'chatbot' && <ChatbotInvoice />}
             {activeTab === 'invoices' && <InvoiceList />}
+            {activeTab === 'credit-notes' && <CreditNotesList />}
+            {activeTab === 'debit-notes' && <DebitNotesList />}
             {activeTab === 'customers' && <CustomerManager />}
             {activeTab === 'products' && <ProductManager />}
             {activeTab === 'reports' && <ReportsPanel />}
