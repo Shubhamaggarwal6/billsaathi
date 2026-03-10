@@ -185,6 +185,48 @@ export interface PurchaseEntry {
   timestamp: string;
 }
 
+export interface CreditNote {
+  id: string;
+  userId: string;
+  creditNoteNumber: string;
+  date: string;
+  originalInvoiceId: string;
+  originalInvoiceNumber?: string;
+  customerId: string;
+  customerName: string;
+  reason: string;
+  items: InvoiceItem[];
+  subtotal: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  total: number;
+  isInterState: boolean;
+  status: 'active' | 'adjusted' | 'cancelled';
+  createdBy?: InvoiceCreator;
+}
+
+export interface DebitNote {
+  id: string;
+  userId: string;
+  debitNoteNumber: string;
+  date: string;
+  originalInvoiceId: string;
+  originalInvoiceNumber?: string;
+  customerId: string;
+  customerName: string;
+  reason: string;
+  items: InvoiceItem[];
+  subtotal: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  total: number;
+  isInterState: boolean;
+  status: 'active' | 'paid' | 'cancelled';
+  createdBy?: InvoiceCreator;
+}
+
 export interface SubscriptionStatus {
   status: 'active' | 'warning' | 'critical' | 'expired';
   color: string;
