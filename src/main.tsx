@@ -4,9 +4,22 @@ import "./index.css";
 
 createRoot(document.getElementById("root")!).render(<App />);
 
-// Register service worker
+// Register service worker with background sync
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js');
+      // Register background sync if supported
+      if ('sync' in reg) {
+        await (reg as any).sync.register('sync-billsaathi').catch(() => {});
+      }
+    } catch {}
+  });
+
+  // Listen for background sync messages
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data?.type === 'BACKGROUND_SYNC') {
+      import('./lib/syncEngine').then(({ syncNow }) => syncNow());
+    }
   });
 }
