@@ -71,14 +71,14 @@ export default function ChatbotInvoice() {
   const myCustomers = customers.filter(c => c.userId === userId);
   const myProducts = products.filter(p => p.userId === userId);
 
-  // Initialize first message with translation
+  // Initialize first message with document type selection
   useEffect(() => {
     if (!initialized) {
       setMessages([{
         from: 'bot',
         text: '🙏 ' + t('chatWelcome'),
-        options: [t('btnOldCustomer'), t('btnNewCustomer')],
-        optionKeys: ['btnOldCustomer', 'btnNewCustomer'],
+        options: ['🧾 Invoice Banao', '📋 Credit Note Banao', '📋 Debit Note Banao'],
+        optionKeys: ['startInvoice', 'startCreditNote', 'startDebitNote'],
       }]);
       setInitialized(true);
     }
