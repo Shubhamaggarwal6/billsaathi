@@ -329,6 +329,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setCreditNotesRaw(cns);
         }
         if (localDebitNotes.length > 0) setDebitNotesRaw(localDebitNotes.map(fromLocalDebitNote));
+        if (localSuppliers.length > 0) setSuppliersRaw(localSuppliers.map(fromLocalSupplier));
 
         setDbReady(true);
       } catch (err) {
