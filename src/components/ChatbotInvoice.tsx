@@ -147,8 +147,7 @@ export default function ChatbotInvoice() {
       return;
     }
     if (optKey === 'startDebitNote') {
-      setDocType('debit-note');
-      addMsg('bot', 'Debit Note ke liye invoice search karein:', [t('btnOldCustomer'), t('btnNewCustomer')], ['btnOldCustomer', 'btnNewCustomer']);
+      // Debit notes are auto-created only, not from chatbot
       return;
     }
     if (optKey === 'btnOldCustomer' || opt === t('btnOldCustomer')) {
