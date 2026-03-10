@@ -1610,6 +1610,7 @@ export const translations: Record<Language, Record<string, string>> = {
     syncErrorFk: 'સંબંધિત રેકોર્ડ સર્વર પર મળ્યો નહીં',
     syncErrorJwt: 'સેશન પૂરું — ફરી લૉગિન કરો',
     syncErrorGeneric: 'સિંક ભૂલ — ફરી પ્રયાસ થશે',
+    syncErrorDemo: 'ડેમો ડેટા — સર્વર પર સિંક નહીં થાય',
     dismiss: 'હટાવો',
     savedLocally: '✅ લોકલમાં સેવ — ઑનલાઇન થશો ત્યારે સિંક થશે',
     phCustomerSearch: 'ગ્રાહક નામ, ફોન કે GST...',
