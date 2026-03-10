@@ -216,6 +216,51 @@ export default function SettingsPanel() {
       </div>
 
       {msg && <p className="text-sm" style={{ color: msg.startsWith('✅') ? 'hsl(var(--success))' : 'hsl(var(--critical))' }}>{msg}</p>}
+
+      {/* Sync Status */}
+      <div className="glass-card p-5">
+        <h3 className="text-sm font-semibold text-foreground mb-3">🔄 Sync Status</h3>
+        <SyncStatusSection />
+      </div>
+    </div>
+  );
+}
+
+function SyncStatusSection() {
+  const [info, setInfo] = useState<any>(null);
+
+  useState(() => {
+    import('@/lib/syncEngine').then(mod => {
+      mod.getSyncInfo().then(setInfo);
+      mod.onSyncChange(setInfo);
+    });
+  });
+
+  if (!info) return <p className="text-xs text-muted-foreground">Loading...</p>;
+
+  const statusText: Record<string, string> = {
+    synced: '🟢 All synced',
+    syncing: '🔄 Syncing...',
+    pending: `🟡 ${info.pendingCount} items pending`,
+    offline: '🔴 Offline',
+  };
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm text-foreground">{statusText[info.state] || info.state}</p>
+      {info.lastSyncedAt && (
+        <p className="text-xs text-muted-foreground">Last sync: {new Date(info.lastSyncedAt).toLocaleString('en-IN')}</p>
+      )}
+      {Object.keys(info.pendingByTable).length > 0 && (
+        <div className="space-y-1 pt-1">
+          {Object.entries(info.pendingByTable).map(([table, count]) => (
+            <div key={table} className="flex items-center justify-between text-xs">
+              <span className="capitalize text-foreground">{table.replace(/_/g, ' ')}</span>
+              <span className="text-muted-foreground">{count as number}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
