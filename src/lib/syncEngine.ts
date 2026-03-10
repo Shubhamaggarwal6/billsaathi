@@ -124,7 +124,7 @@ async function pullChanges(tenantId: string): Promise<void> {
 
       if (table === 'tenants') {
         query = query.eq('id', tenantId);
-      } else if (!['invoice_items', 'credit_note_items', 'debit_note_items'].includes(table)) {
+      } else if (table !== 'invoice_items') {
         query = query.eq('tenant_id', tenantId);
       }
 
