@@ -524,11 +524,17 @@ export default function ChatbotInvoice() {
     };
   };
 
+  const generateNoteNumber = (prefix: string, existingNotes: { id: string }[]) => {
+    const year = new Date().getFullYear();
+    const count = existingNotes.length + 1;
+    return `${prefix}-${year}-${String(count).padStart(4, '0')}`;
+  };
+
   const createCreditNote = () => {
     const inv = lastCreatedInvoice;
     if (!inv) return;
     const totals = getCnTotals();
-    const cnNumber = `CN-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`;
+    const cnNumber = generateNoteNumber('CN', creditNotes);
     
     const cn: CreditNote = {
       id: crypto.randomUUID(), userId, creditNoteNumber: cnNumber,
@@ -552,10 +558,27 @@ export default function ChatbotInvoice() {
       }));
     }
     
-    // TODO: Save to context/IndexedDB when credit notes are added to AppContext
+    // Save to context (triggers IndexedDB + sync)
+    setCreditNotes(prev => [...prev, cn]);
+    
     addMsg('bot', `✅ Credit Note Ban Gayi! ${cnNumber}\nAmount: ₹${totals.total.toLocaleString('en-IN')}`);
     setPanelMode('done');
-    setLastCreatedInvoice(inv); // Keep for done screen reference
+    setLastCreatedInvoice(inv);
+  };
+
+  const createSilentDebitNote = (inv: Invoice, balanceDue: number, reason: string) => {
+    const dnNumber = generateNoteNumber('DN', debitNotes);
+    const dn: DebitNote = {
+      id: crypto.randomUUID(), userId, debitNoteNumber: dnNumber,
+      date: new Date().toISOString().split('T')[0],
+      originalInvoiceId: inv.id, originalInvoiceNumber: inv.invoiceNumber,
+      customerId: inv.customerId, customerName: inv.customerName,
+      reason, items: [], subtotal: balanceDue, cgst: 0, sgst: 0, igst: 0,
+      total: balanceDue, isInterState: false, status: 'active',
+      createdBy: { id: currentUser!.id, name: currentUser!.firmName || currentUser!.username, role: currentUser!.role, timestamp: new Date().toISOString() },
+    };
+    setDebitNotes(prev => [...prev, dn]);
+    return dnNumber;
   };
 
   // ---- Invoice creation ----
