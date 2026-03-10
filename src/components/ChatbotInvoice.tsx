@@ -142,6 +142,25 @@ export default function ChatbotInvoice() {
   const handleStartOption = (opt: string, optKey?: string) => {
     addMsg('user', opt);
     setStartChoice(true);
+    
+    // Document type selection
+    if (optKey === 'startInvoice') {
+      setDocType('invoice');
+      addMsg('bot', t('chatWelcome') + '\n' + t('chatSearchCustomer'), 
+        [t('btnOldCustomer'), t('btnNewCustomer')], ['btnOldCustomer', 'btnNewCustomer']);
+      return;
+    }
+    if (optKey === 'startCreditNote') {
+      setDocType('credit-note');
+      addMsg('bot', 'Credit Note ke liye invoice search karein:', [t('btnOldCustomer'), t('btnNewCustomer')], ['btnOldCustomer', 'btnNewCustomer']);
+      return;
+    }
+    if (optKey === 'startDebitNote') {
+      setDocType('debit-note');
+      addMsg('bot', 'Debit Note ke liye invoice search karein:', [t('btnOldCustomer'), t('btnNewCustomer')], ['btnOldCustomer', 'btnNewCustomer']);
+      return;
+    }
+    
     if (optKey === 'btnOldCustomer' || opt === t('btnOldCustomer')) {
       addMsg('bot', t('chatSearchCustomer'));
       setStep('select-customer');
