@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Search, Eye, Printer, X, Trash2, Pencil, Download, FileText, FileSpreadsheet } from 'lucide-react';
+import { Search, Eye, Printer, X, Trash2, Pencil, Download, FileText, FileSpreadsheet, Plus, MessageSquare } from 'lucide-react';
 import type { Invoice, InvoiceItem, Payment } from '@/lib/types';
+import ManualInvoiceForm from '@/components/ManualInvoiceForm';
 
 interface Props {
   readOnly?: boolean;
