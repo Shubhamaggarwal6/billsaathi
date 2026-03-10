@@ -271,7 +271,7 @@ export async function initialDownload(
       let query = (supabase.from(table) as any).select('*');
       if (table === 'tenants') {
         query = query.eq('id', tenantId);
-      } else if (!['invoice_items', 'credit_note_items', 'debit_note_items'].includes(table)) {
+      } else if (table !== 'invoice_items') {
         query = query.eq('tenant_id', tenantId);
       }
       if (table === 'invoices') {
