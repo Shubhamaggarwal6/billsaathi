@@ -34,7 +34,7 @@ interface Message {
 }
 
 export default function ChatbotInvoice() {
-  const { currentUser, users, customers, products, invoices, payments, setCustomers, setProducts, setInvoices, setPayments } = useApp();
+  const { currentUser, users, customers, products, invoices, payments, setCustomers, setProducts, setInvoices, setPayments, creditNotes, debitNotes, setCreditNotes, setDebitNotes } = useApp();
   const { t } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
