@@ -18,7 +18,7 @@ import SupplierManager from '@/components/SupplierManager';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
   LayoutDashboard, MessageSquare, Users, Package, BarChart3,
-  UserPlus, Settings, LogOut, FileText, AlertTriangle, ClipboardList, ShoppingCart, Menu, X, CreditCard, Receipt
+  UserPlus, Settings, LogOut, FileText, AlertTriangle, ClipboardList, ShoppingCart, Menu, X, CreditCard, Receipt, Factory
 } from 'lucide-react';
 import SyncStatusBadge from '@/components/SyncStatusBadge';
 
