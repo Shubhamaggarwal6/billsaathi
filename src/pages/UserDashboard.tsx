@@ -12,14 +12,16 @@ import EmployeeManager from '@/components/EmployeeManager';
 import SettingsPanel from '@/components/SettingsPanel';
 import InvoiceList from '@/components/InvoiceList';
 import PurchaseRegister from '@/components/PurchaseRegister';
+import CreditNotesList from '@/components/CreditNotesList';
+import DebitNotesList from '@/components/DebitNotesList';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
   LayoutDashboard, MessageSquare, Users, Package, BarChart3,
-  UserPlus, Settings, LogOut, FileText, AlertTriangle, ClipboardList, ShoppingCart, Menu, X
+  UserPlus, Settings, LogOut, FileText, AlertTriangle, ClipboardList, ShoppingCart, Menu, X, CreditCard, Receipt
 } from 'lucide-react';
 import SyncStatusBadge from '@/components/SyncStatusBadge';
 
-type Tab = 'dashboard' | 'chatbot' | 'invoices' | 'customers' | 'products' | 'reports' | 'employees' | 'settings' | 'purchases';
+type Tab = 'dashboard' | 'chatbot' | 'invoices' | 'credit-notes' | 'debit-notes' | 'customers' | 'products' | 'reports' | 'employees' | 'settings' | 'purchases';
 
 export default function UserDashboard() {
   const { currentUser, users, invoices, products, customers, setCurrentUser } = useApp();
@@ -43,6 +45,8 @@ export default function UserDashboard() {
     { id: 'dashboard', label: t('dashboard'), icon: <LayoutDashboard className="w-5 h-5" /> },
     { id: 'chatbot', label: t('createInvoice'), icon: <MessageSquare className="w-5 h-5" /> },
     { id: 'invoices', label: t('invoices'), icon: <ClipboardList className="w-5 h-5" /> },
+    { id: 'credit-notes', label: 'Credit Notes', icon: <CreditCard className="w-5 h-5" /> },
+    { id: 'debit-notes', label: 'Debit Notes', icon: <Receipt className="w-5 h-5" /> },
     { id: 'customers', label: t('customers'), icon: <Users className="w-5 h-5" /> },
     { id: 'products', label: t('products'), icon: <Package className="w-5 h-5" /> },
     { id: 'purchases', label: t('purchases'), icon: <ShoppingCart className="w-5 h-5" /> },
@@ -196,6 +200,8 @@ export default function UserDashboard() {
 
             {activeTab === 'chatbot' && <ChatbotInvoice />}
             {activeTab === 'invoices' && <InvoiceList />}
+            {activeTab === 'credit-notes' && <CreditNotesList />}
+            {activeTab === 'debit-notes' && <DebitNotesList />}
             {activeTab === 'customers' && <CustomerManager />}
             {activeTab === 'products' && <ProductManager />}
             {activeTab === 'reports' && <ReportsPanel />}

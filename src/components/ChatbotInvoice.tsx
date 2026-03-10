@@ -65,19 +65,20 @@ export default function ChatbotInvoice() {
   const [editField, setEditField] = useState<string | null>(null);
   const [editInput, setEditInput] = useState('');
   const [initialized, setInitialized] = useState(false);
+  const [docType, setDocType] = useState<'invoice' | 'credit-note' | 'debit-note'>('invoice');
 
   const userId = currentUser?.role === 'employee' ? currentUser.parentUserId! : currentUser?.id!;
   const myCustomers = customers.filter(c => c.userId === userId);
   const myProducts = products.filter(p => p.userId === userId);
 
-  // Initialize first message with translation
+  // Initialize first message with document type selection
   useEffect(() => {
     if (!initialized) {
       setMessages([{
         from: 'bot',
         text: '🙏 ' + t('chatWelcome'),
-        options: [t('btnOldCustomer'), t('btnNewCustomer')],
-        optionKeys: ['btnOldCustomer', 'btnNewCustomer'],
+        options: ['🧾 Invoice Banao', '📋 Credit Note Banao', '📋 Debit Note Banao'],
+        optionKeys: ['startInvoice', 'startCreditNote', 'startDebitNote'],
       }]);
       setInitialized(true);
     }
@@ -141,6 +142,25 @@ export default function ChatbotInvoice() {
   const handleStartOption = (opt: string, optKey?: string) => {
     addMsg('user', opt);
     setStartChoice(true);
+    
+    // Document type selection
+    if (optKey === 'startInvoice') {
+      setDocType('invoice');
+      addMsg('bot', t('chatWelcome') + '\n' + t('chatSearchCustomer'), 
+        [t('btnOldCustomer'), t('btnNewCustomer')], ['btnOldCustomer', 'btnNewCustomer']);
+      return;
+    }
+    if (optKey === 'startCreditNote') {
+      setDocType('credit-note');
+      addMsg('bot', 'Credit Note ke liye invoice search karein:', [t('btnOldCustomer'), t('btnNewCustomer')], ['btnOldCustomer', 'btnNewCustomer']);
+      return;
+    }
+    if (optKey === 'startDebitNote') {
+      setDocType('debit-note');
+      addMsg('bot', 'Debit Note ke liye invoice search karein:', [t('btnOldCustomer'), t('btnNewCustomer')], ['btnOldCustomer', 'btnNewCustomer']);
+      return;
+    }
+    
     if (optKey === 'btnOldCustomer' || opt === t('btnOldCustomer')) {
       addMsg('bot', t('chatSearchCustomer'));
       setStep('select-customer');
@@ -151,7 +171,12 @@ export default function ChatbotInvoice() {
   };
 
   const handleOptionClick = (opt: string, optKey?: string) => {
-    if (!startChoice) {
+    // Handle document type selection as start options
+    if (!startChoice || optKey === 'startInvoice' || optKey === 'startCreditNote' || optKey === 'startDebitNote' || optKey === 'btnOldCustomer' || optKey === 'btnNewCustomer') {
+      if (!startChoice && !['startInvoice', 'startCreditNote', 'startDebitNote'].includes(optKey || '')) {
+        handleStartOption(opt, optKey);
+        return;
+      }
       handleStartOption(opt, optKey);
       return;
     }
@@ -474,8 +499,8 @@ export default function ChatbotInvoice() {
     setMessages([{
       from: 'bot',
       text: '🙏 ' + t('chatWelcome'),
-      options: [t('btnOldCustomer'), t('btnNewCustomer')],
-      optionKeys: ['btnOldCustomer', 'btnNewCustomer'],
+      options: ['🧾 Invoice Banao', '📋 Credit Note Banao', '📋 Debit Note Banao'],
+      optionKeys: ['startInvoice', 'startCreditNote', 'startDebitNote'],
     }]);
     setStep('select-customer');
     setPanelMode('chat');
@@ -490,6 +515,7 @@ export default function ChatbotInvoice() {
     setEditField(null);
     setEditInput('');
     setLastCreatedInvoice(null);
+    setDocType('invoice');
   };
 
   const printInvoice = () => {
@@ -556,7 +582,8 @@ export default function ChatbotInvoice() {
       <div className="glass-card flex-1 flex flex-col overflow-hidden">
         {/* ====== PANEL: PREVIEW ====== */}
         {panelMode === 'preview' && (
-          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="overflow-y-auto p-3 space-y-3 flex-1" style={{ maxHeight: '60vh', WebkitOverflowScrolling: 'touch' as any }}>
             {/* Invoice-style preview */}
             <div className="border border-primary/30 rounded-lg overflow-hidden bg-card text-foreground text-xs">
               {/* Header */}
@@ -692,17 +719,21 @@ export default function ChatbotInvoice() {
               </div>
             </div>
 
-            <div className="flex gap-2 pt-2">
-              <Button onClick={createInvoice} className="flex-1 min-h-[48px]" disabled={items.length === 0}>
-                {t('btnCreateInvoice')}
-              </Button>
-              <Button variant="outline" onClick={() => setPanelMode('edit')} className="min-h-[48px]">
-                {t('btnEditInvoice')}
+            </div>
+            {/* Fixed buttons outside scroll area */}
+            <div className="shrink-0 border-t p-3 space-y-2 bg-card">
+              <div className="flex gap-2">
+                <Button onClick={createInvoice} className="flex-1 min-h-[48px]" disabled={items.length === 0}>
+                  ✅ {t('btnCreateInvoice')}
+                </Button>
+                <Button variant="outline" onClick={() => setPanelMode('edit')} className="min-h-[48px]">
+                  ✏️ {t('btnEditInvoice')}
+                </Button>
+              </div>
+              <Button variant="ghost" className="w-full text-destructive min-h-[44px]" onClick={resetChat}>
+                {t('btnCancelAll')}
               </Button>
             </div>
-            <Button variant="ghost" className="w-full text-destructive min-h-[44px]" onClick={resetChat}>
-              {t('btnCancelAll')}
-            </Button>
           </div>
         )}
 
