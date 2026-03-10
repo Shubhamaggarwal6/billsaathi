@@ -523,12 +523,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, [currentUser?.id]);
 
+  const setSuppliers: React.Dispatch<React.SetStateAction<Supplier[]>> = useCallback((action) => {
+    setSuppliersRaw(prev => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      saveToStorage('bs_suppliers', next);
+      return next;
+    });
+  }, []);
+
   return (
     <AppContext.Provider value={{
       currentUser, users, customers, products, invoices, payments, purchases,
-      creditNotes, debitNotes,
+      creditNotes, debitNotes, suppliers,
       setCurrentUser, setUsers, setCustomers, setProducts, setInvoices, setPayments, setPurchases,
-      setCreditNotes, setDebitNotes,
+      setCreditNotes, setDebitNotes, setSuppliers,
       dbReady,
     }}>
       {children}
