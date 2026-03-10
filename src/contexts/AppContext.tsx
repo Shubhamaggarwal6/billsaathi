@@ -252,6 +252,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [purchases, setPurchasesRaw] = useState<PurchaseEntry[]>(() => loadFromStorage('bs_purchases', initialPurchases));
   const [creditNotes, setCreditNotesRaw] = useState<CreditNote[]>(() => loadFromStorage('bs_creditNotes', []));
   const [debitNotes, setDebitNotesRaw] = useState<DebitNote[]>(() => loadFromStorage('bs_debitNotes', []));
+  const [suppliers, setSuppliersRaw] = useState<Supplier[]>(() => loadFromStorage('bs_suppliers', []));
   const [dbReady, setDbReady] = useState(false);
 
   // Load from IndexedDB on mount
