@@ -206,6 +206,7 @@ export default function UserDashboard() {
             {activeTab === 'debit-notes' && <DebitNotesList />}
             {activeTab === 'customers' && <CustomerManager />}
             {activeTab === 'products' && <ProductManager />}
+            {activeTab === 'suppliers' && <SupplierManager />}
             {activeTab === 'reports' && <ReportsPanel />}
             {activeTab === 'purchases' && <PurchaseRegister />}
             {activeTab === 'employees' && <EmployeeManager />}

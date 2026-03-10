@@ -309,6 +309,7 @@ class BillSaathiDB extends Dexie {
   credit_note_items!: Table<LocalCreditNoteItem, string>;
   debit_notes!: Table<LocalDebitNote, string>;
   debit_note_items!: Table<LocalDebitNoteItem, string>;
+  suppliers!: Table<LocalSupplier, string>;
   sync_queue!: Table<SyncQueueItem, string>;
   sync_metadata!: Table<SyncMetadata, string>;
 
@@ -331,6 +332,9 @@ class BillSaathiDB extends Dexie {
       credit_note_items: 'id, credit_note_id, product_id',
       debit_notes: 'id, tenant_id, debit_note_number, original_invoice_id, customer_id, is_deleted, updated_at',
       debit_note_items: 'id, debit_note_id, product_id',
+    });
+    this.version(3).stores({
+      suppliers: 'id, tenant_id, name, gst_number, is_deleted, updated_at',
     });
   }
 }
