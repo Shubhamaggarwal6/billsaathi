@@ -45,6 +45,8 @@ export default function UserDashboard() {
     { id: 'dashboard', label: t('dashboard'), icon: <LayoutDashboard className="w-5 h-5" /> },
     { id: 'chatbot', label: t('createInvoice'), icon: <MessageSquare className="w-5 h-5" /> },
     { id: 'invoices', label: t('invoices'), icon: <ClipboardList className="w-5 h-5" /> },
+    { id: 'credit-notes', label: 'Credit Notes', icon: <CreditCard className="w-5 h-5" /> },
+    { id: 'debit-notes', label: 'Debit Notes', icon: <Receipt className="w-5 h-5" /> },
     { id: 'customers', label: t('customers'), icon: <Users className="w-5 h-5" /> },
     { id: 'products', label: t('products'), icon: <Package className="w-5 h-5" /> },
     { id: 'purchases', label: t('purchases'), icon: <ShoppingCart className="w-5 h-5" /> },
