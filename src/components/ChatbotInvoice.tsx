@@ -7,6 +7,7 @@ import { printDoc, downloadDocPDF, invoiceToDocData, creditNoteToDocData, debitN
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Printer, Pencil, Trash2, RotateCcw, Home, FileText, Download, Share2, ArrowLeft, Plus, Package, Car, User, Hash } from 'lucide-react';
+import { toast } from 'sonner';
 import type { Customer, Product, InvoiceItem, Invoice, Payment, CreditNote, DebitNote } from '@/lib/types';
 
 // State machine
@@ -16,12 +17,16 @@ type ChatStep =
   | 'vehicle' | 'add-product' | 'product-selling-price' | 'product-discount' | 'product-quantity'
   | 'new-product-name' | 'new-product-hsn' | 'new-product-price' | 'new-product-gst' | 'new-product-unit'
   | 'more-products'
-  | 'payment-ask' | 'payment-mode' | 'payment-partial-amount' | 'payment-partial-mode'
-  // CN flow steps
+  // NEW: Payment mode flow
+  | 'payment-mode' | 'payment-ref'
+  // CN flow steps (strict state machine)
   | 'cn-select-customer' | 'cn-confirm-customer' | 'cn-select-invoice'
-  | 'cn-return-type' | 'cn-select-products' | 'cn-product-qty' | 'cn-product-rate'
+  | 'cn-return-type' | 'cn-select-products'
+  | 'cn-product-qty' | 'cn-product-rate'
+  | 'cn-more-products' // asked once only
   | 'cn-search-product' | 'cn-manual-product-qty' | 'cn-manual-product-rate'
-  | 'cn-amount' | 'cn-amount-gst' | 'cn-misc-amount' | 'cn-misc-reason' | 'cn-misc-gst'
+  | 'cn-amount' | 'cn-amount-gst'
+  | 'cn-misc-amount' | 'cn-misc-reason' | 'cn-misc-gst'
   | 'cn-extra-misc' | 'cn-extra-misc-desc' | 'cn-extra-misc-gst'
   | 'cn-note' | 'cn-confirm'
   // Post-invoice credit note prompt
@@ -51,6 +56,7 @@ export default function ChatbotInvoice() {
   const [currentItem, setCurrentItem] = useState<Partial<InvoiceItem>>({});
   const [newProd, setNewProd] = useState({ name: '', hsn: '', price: 0, gstPercent: 18, unit: 'Piece' });
   const [suggestions, setSuggestions] = useState<(Customer | Product)[]>([]);
+  const [invoiceSuggestions, setInvoiceSuggestions] = useState<Invoice[]>([]);
   const [lastCreatedInvoice, setLastCreatedInvoice] = useState<Invoice | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -59,6 +65,10 @@ export default function ChatbotInvoice() {
   const [editInput, setEditInput] = useState('');
   const [initialized, setInitialized] = useState(false);
   const [docType, setDocType] = useState<'invoice' | 'credit-note'>('invoice');
+  
+  // Payment mode on done screen
+  const [selectedPaymentMode, setSelectedPaymentMode] = useState<string>('');
+  const [paymentRef, setPaymentRef] = useState('');
   
   // Payment status on done screen — UI only until finalized
   const [donePaymentStatus, setDonePaymentStatus] = useState<'paid' | 'partial' | 'pending'>('paid');
@@ -70,10 +80,10 @@ export default function ChatbotInvoice() {
   const [cnCustomer, setCnCustomer] = useState<Customer | null>(null);
   const [cnInvoice, setCnInvoice] = useState<Invoice | null>(null);
   const [cnReturnType, setCnReturnType] = useState<'product' | 'amount' | 'both' | 'misc' | null>(null);
-  const [cnSelectedProducts, setCnSelectedProducts] = useState<Set<number>>(new Set());
-  const [cnProductQtys, setCnProductQtys] = useState<Record<number, number>>({});
-  const [cnProductRates, setCnProductRates] = useState<Record<number, number>>({});
+  const [cnProductsQueue, setCnProductsQueue] = useState<{item: InvoiceItem, origQty: number, origRate: number}[]>([]);
+  const [cnProductsDone, setCnProductsDone] = useState<InvoiceItem[]>([]);
   const [cnCurrentProductIndex, setCnCurrentProductIndex] = useState(0);
+  const [cnMoreProductsAsked, setCnMoreProductsAsked] = useState(false); // FLAG: prevents repeat
   const [cnManualProducts, setCnManualProducts] = useState<InvoiceItem[]>([]);
   const [cnCurrentManualProduct, setCnCurrentManualProduct] = useState<Partial<InvoiceItem>>({});
   const [cnAmount, setCnAmount] = useState(0);
@@ -84,6 +94,8 @@ export default function ChatbotInvoice() {
   const [cnNote, setCnNote] = useState('');
   const [cnItems, setCnItems] = useState<InvoiceItem[]>([]);
   const [lastCreatedCN, setLastCreatedCN] = useState<CreditNote | null>(null);
+  // Temp storage for product qty/rate during CN flow
+  const [cnTempQty, setCnTempQty] = useState(0);
 
   const userId = currentUser?.role === 'employee' ? currentUser.parentUserId! : currentUser?.id!;
   const myCustomers = customers.filter(c => c.userId === userId);
@@ -120,9 +132,10 @@ export default function ChatbotInvoice() {
     } else if (step === 'cn-select-invoice' && value.trim().length >= 1) {
       const q = value.toLowerCase();
       const custInvoices = cnCustomer ? myInvoices.filter(i => i.customerId === cnCustomer.id) : myInvoices;
-      setSuggestions([]); // invoices handled separately
+      setInvoiceSuggestions(custInvoices.filter(i => i.invoiceNumber.toLowerCase().includes(q) || i.customerName.toLowerCase().includes(q)).slice(0, 5));
     } else {
       setSuggestions([]);
+      setInvoiceSuggestions([]);
     }
   };
 
@@ -160,6 +173,17 @@ export default function ChatbotInvoice() {
     setStep('product-selling-price');
   };
 
+  const selectInvoiceForCN = (inv: Invoice) => {
+    setCnInvoice(inv);
+    setInvoiceSuggestions([]);
+    setInput('');
+    addMsg('user', inv.invoiceNumber);
+    addMsg('bot', `✅ ${inv.invoiceNumber} select hua\n${inv.customerName} — ₹${inv.grandTotal.toLocaleString('en-IN')}\n\nKya return/adjust karna hai?`,
+      ['📦 Product Wapas', '💰 Amount Adjust', '📦+💰 Dono', '📝 Miscellaneous Only'],
+      ['cnProduct', 'cnAmount', 'cnBoth', 'cnMisc']);
+    setStep('cn-return-type');
+  };
+
   const goToPreview = () => { setPanelMode('preview'); };
 
   const handleStartOption = (opt: string, optKey?: string) => {
@@ -172,7 +196,6 @@ export default function ChatbotInvoice() {
     }
     if (optKey === 'startCreditNote') {
       setDocType('credit-note');
-      // Start completely separate CN flow
       addMsg('bot', 'Kis customer ke liye credit note banana hai?\nCustomer search karein:');
       setStep('cn-select-customer');
       return;
@@ -214,14 +237,31 @@ export default function ChatbotInvoice() {
         addMsg('bot', t('chatAskProduct'));
         setStep('add-product');
       } else {
+        // User said no more products — IMMEDIATELY show preview
         goToPreview();
       }
       return;
     }
-    if (step === 'payment-ask') { handlePaymentAsk(opt, optKey); return; }
-    if (step === 'payment-mode') { handlePaymentMode(opt); return; }
-    if (step === 'payment-partial-mode') { handlePartialPaymentMode(opt); return; }
     
+    // Payment mode selection (6 options)
+    if (step === 'payment-mode') {
+      const modeMap: Record<string, string> = {
+        '💵 Cash': 'Cash', '📱 UPI': 'UPI', '🏦 NEFT': 'NEFT',
+        '🏦 RTGS': 'RTGS', '🧾 Cheque': 'Cheque', '⏳ Baad Mein / Credit': 'Credit',
+      };
+      const mode = modeMap[opt] || opt;
+      setSelectedPaymentMode(mode);
+      if (mode === 'Credit') {
+        // Directly finalize as pending
+        setDonePaymentStatus('pending');
+        finalizeInvoicePayment('pending', 0, 'Credit', '');
+      } else {
+        addMsg('bot', 'Reference number? (Enter = skip)');
+        setStep('payment-ref');
+      }
+      return;
+    }
+
     // CN return type
     if (step === 'cn-return-type') {
       if (optKey === 'cnProduct') { setCnReturnType('product'); startCnProductSelection(); }
@@ -241,10 +281,28 @@ export default function ChatbotInvoice() {
       return;
     }
     
+    // CN more products asked ONCE
+    if (step === 'cn-more-products') {
+      if (optKey === 'cnMoreProduct' || opt === 'Haan') {
+        // Let user search more products
+        addMsg('bot', 'Product ka naam likhein:');
+        setStep('cn-search-product');
+      } else {
+        // No more products — move forward
+        movePastCnProducts();
+      }
+      return;
+    }
+    
+    // CN manual product "Aur product add karna hai?"
+    if (step === 'cn-manual-product-rate') {
+      // This is handled in handleSend
+      return;
+    }
+
     // Post-invoice credit note prompt
     if (step === 'ask-credit-note') {
       if (optKey === 'cnYes') {
-        // Start full CN flow from done screen
         setDocType('credit-note');
         setCnCustomer({ id: lastCreatedInvoice!.customerId, userId, name: lastCreatedInvoice!.customerName, phone: '', gstNumber: lastCreatedInvoice!.customerGst, address: lastCreatedInvoice!.customerAddress });
         setCnInvoice(lastCreatedInvoice);
@@ -281,9 +339,19 @@ export default function ChatbotInvoice() {
       addMsg('bot', `Products select karein (numbers comma-separated, e.g. 1,3):\n${productList}`);
       setStep('cn-select-products');
     } else {
-      // No invoice selected or no items — search products
       addMsg('bot', 'Product ka naam likhein:');
       setStep('cn-search-product');
+    }
+  };
+
+  // After all products done, move to next step based on type
+  const movePastCnProducts = () => {
+    if (cnReturnType === 'both') {
+      addMsg('bot', 'Kitna extra amount adjust karna hai? (Enter = skip)');
+      setStep('cn-amount');
+    } else {
+      addMsg('bot', 'Koi aur miscellaneous amount add karna hai?\n(Enter = nahi)');
+      setStep('cn-extra-misc');
     }
   };
 
@@ -291,10 +359,12 @@ export default function ChatbotInvoice() {
     const text = input.trim();
     const skippableSteps: ChatStep[] = ['vehicle', 'new-customer-gst', 'new-customer-address', 'new-product-hsn', 'product-selling-price', 'product-discount',
       'cn-product-rate', 'cn-product-qty', 'cn-amount', 'cn-amount-gst', 'cn-misc-reason', 'cn-misc-gst', 'cn-note',
-      'cn-select-invoice', 'cn-extra-misc', 'cn-extra-misc-desc', 'cn-extra-misc-gst', 'cn-manual-product-qty', 'cn-manual-product-rate'];
+      'cn-select-invoice', 'cn-extra-misc', 'cn-extra-misc-desc', 'cn-extra-misc-gst', 'cn-manual-product-qty', 'cn-manual-product-rate',
+      'payment-ref'];
     if (!text && !skippableSteps.includes(step)) return;
     setInput('');
     setSuggestions([]);
+    setInvoiceSuggestions([]);
     if (text) addMsg('user', text);
     else addMsg('user', '(skip)');
 
@@ -402,13 +472,13 @@ export default function ChatbotInvoice() {
         setStep('product-selling-price');
         break;
       }
-      case 'payment-partial-amount': {
-        const amt = Number(text);
-        if (isNaN(amt) || amt <= 0) { addMsg('bot', t('chatCorrectAmount')); return; }
-        setCurrentItem(prev => ({ ...prev, price: amt } as any));
-        addMsg('bot', `₹${amt.toLocaleString('en-IN')} — ${t('chatPaymentHow')}`,
-          [t('btnCash'), t('btnUPI'), t('btnBankTransfer'), t('btnRTGS'), t('btnCheque')]);
-        setStep('payment-partial-mode');
+      
+      // Payment reference number
+      case 'payment-ref': {
+        setPaymentRef(text);
+        // Now finalize with paid status
+        setDonePaymentStatus('paid');
+        finalizeInvoicePayment('paid', 0, selectedPaymentMode, text);
         break;
       }
 
@@ -422,7 +492,6 @@ export default function ChatbotInvoice() {
       }
       case 'cn-select-invoice': {
         if (!text) {
-          // Skip — no invoice reference
           setCnInvoice(null);
           addMsg('bot', 'Kya return/adjust karna hai?',
             ['📦 Product Wapas', '💰 Amount Adjust', '📦+💰 Dono', '📝 Miscellaneous Only'],
@@ -432,13 +501,10 @@ export default function ChatbotInvoice() {
           const custInvoices = cnCustomer ? myInvoices.filter(i => i.customerId === cnCustomer.id) : myInvoices;
           const matches = custInvoices.filter(i => i.invoiceNumber.toLowerCase().includes(text.toLowerCase()) || i.customerName.toLowerCase().includes(text.toLowerCase()));
           if (matches.length === 1) {
-            setCnInvoice(matches[0]);
-            addMsg('bot', `✅ Invoice: ${matches[0].invoiceNumber} (₹${matches[0].grandTotal.toLocaleString('en-IN')})\n\nKya return/adjust karna hai?`,
-              ['📦 Product Wapas', '💰 Amount Adjust', '📦+💰 Dono', '📝 Miscellaneous Only'],
-              ['cnProduct', 'cnAmount', 'cnBoth', 'cnMisc']);
-            setStep('cn-return-type');
+            selectInvoiceForCN(matches[0]);
           } else if (matches.length > 1) {
-            addMsg('bot', 'Kaunsi invoice?', matches.slice(0, 5).map(i => `${i.invoiceNumber} (₹${i.grandTotal.toLocaleString('en-IN')})`));
+            addMsg('bot', 'Kaunsi invoice? Neeche se select karein:');
+            setInvoiceSuggestions(matches.slice(0, 5));
           } else {
             addMsg('bot', 'Invoice nahi mili. Phir se try karein ya Enter dabao skip karne ke liye.');
           }
@@ -451,48 +517,62 @@ export default function ChatbotInvoice() {
         if (!inv) return;
         const validIndices = indices.filter(i => i >= 0 && i < inv.items.length);
         if (validIndices.length === 0) { addMsg('bot', 'Sahi number daalein (1 se ' + inv.items.length + ')'); return; }
-        setCnSelectedProducts(new Set(validIndices));
+        
+        // Build products queue
+        const queue = validIndices.map(idx => ({
+          item: inv.items[idx],
+          origQty: inv.items[idx].quantity,
+          origRate: inv.items[idx].price,
+        }));
+        setCnProductsQueue(queue);
         setCnCurrentProductIndex(0);
-        const firstItem = inv.items[validIndices[0]];
-        addMsg('bot', `"${firstItem.productName}" kitni wapas aayi?\nOriginal: ${firstItem.quantity} ${firstItem.unit}\n(Enter = full quantity)`);
+        setCnProductsDone([]);
+        
+        const first = queue[0];
+        addMsg('bot', `"${first.item.productName}" kitni wapas aayi?\nOriginal: ${first.origQty} ${first.item.unit}\n(Enter = full quantity)`);
         setStep('cn-product-qty');
         break;
       }
       case 'cn-product-qty': {
-        const inv = cnInvoice;
-        if (!inv) return;
-        const selectedArr = Array.from(cnSelectedProducts);
-        const idx = selectedArr[cnCurrentProductIndex];
-        const origItem = inv.items[idx];
-        const qty = text ? Number(text) : origItem.quantity;
-        if (isNaN(qty) || qty <= 0 || qty > origItem.quantity) { addMsg('bot', `0 se ${origItem.quantity} ke beech mein daalein`); return; }
-        setCnProductQtys(prev => ({ ...prev, [idx]: qty }));
-        addMsg('bot', `Rate kya hogi?\nOriginal rate: ₹${origItem.price}\n(Enter = original rate)`);
+        const current = cnProductsQueue[cnCurrentProductIndex];
+        if (!current) return;
+        const qty = text ? Number(text) : current.origQty;
+        if (isNaN(qty) || qty <= 0 || qty > current.origQty) { addMsg('bot', `0 se ${current.origQty} ke beech mein daalein`); return; }
+        setCnTempQty(qty);
+        addMsg('bot', `Rate kya hogi?\nOriginal rate: ₹${current.origRate}\n(Enter = original rate)`);
         setStep('cn-product-rate');
         break;
       }
       case 'cn-product-rate': {
-        const inv = cnInvoice;
-        if (!inv) return;
-        const selectedArr = Array.from(cnSelectedProducts);
-        const idx = selectedArr[cnCurrentProductIndex];
-        const origItem = inv.items[idx];
-        const rate = text ? Number(text) : origItem.price;
+        const current = cnProductsQueue[cnCurrentProductIndex];
+        if (!current) return;
+        const rate = text ? Number(text) : current.origRate;
         if (isNaN(rate) || rate <= 0) { addMsg('bot', 'Sahi rate daalein'); return; }
-        setCnProductRates(prev => ({ ...prev, [idx]: rate }));
         
-        if (cnCurrentProductIndex < selectedArr.length - 1) {
-          const nextIdx = selectedArr[cnCurrentProductIndex + 1];
-          const nextItem = inv.items[nextIdx];
-          setCnCurrentProductIndex(prev => prev + 1);
-          addMsg('bot', `"${nextItem.productName}" kitni wapas aayi?\nOriginal: ${nextItem.quantity} ${nextItem.unit}\n(Enter = full quantity)`);
+        // Add to done list
+        const doneItem: InvoiceItem = {
+          productId: current.item.productId, productName: current.item.productName,
+          hsn: current.item.hsn, quantity: cnTempQty, mrp: current.item.mrp,
+          sellingPrice: rate, price: rate, discount: 0,
+          gstPercent: current.item.gstPercent, unit: current.item.unit,
+        };
+        setCnProductsDone(prev => [...prev, doneItem]);
+        
+        const nextIdx = cnCurrentProductIndex + 1;
+        if (nextIdx < cnProductsQueue.length) {
+          // More products in queue
+          setCnCurrentProductIndex(nextIdx);
+          const next = cnProductsQueue[nextIdx];
+          addMsg('bot', `"${next.item.productName}" kitni wapas aayi?\nOriginal: ${next.origQty} ${next.item.unit}\n(Enter = full quantity)`);
           setStep('cn-product-qty');
-        } else if (cnReturnType === 'both') {
-          addMsg('bot', 'Kitna extra amount adjust karna hai? (Enter = skip)');
-          setStep('cn-amount');
+        } else if (!cnMoreProductsAsked) {
+          // All queue done, ask "more products?" ONCE
+          setCnMoreProductsAsked(true);
+          addMsg('bot', 'Aur koi product wapas karna hai?', ['Haan', 'Nahi'], ['cnMoreProduct', 'cnNoMoreProduct']);
+          setStep('cn-more-products');
         } else {
-          addMsg('bot', 'Koi aur miscellaneous amount add karna hai?\n(Enter = nahi)');
-          setStep('cn-extra-misc');
+          // Already asked, move forward
+          movePastCnProducts();
         }
         break;
       }
@@ -522,10 +602,19 @@ export default function ChatbotInvoice() {
           mrp: p.mrp || rate, sellingPrice: rate, price: rate,
           discount: 0, gstPercent: p.gstPercent || 18, unit: p.unit || 'Piece',
         };
+        setCnProductsDone(prev => [...prev, item]);
         setCnManualProducts(prev => [...prev, item]);
         setCnCurrentManualProduct({});
-        addMsg('bot', `✅ ${item.productName} added.\nAur product add karna hai?`, ['Haan', 'Nahi'], ['cnMoreProduct', 'cnNoMoreProduct']);
-        // Handle via option click — but we need a step for this
+        
+        // If more products not asked yet, ask once
+        if (!cnMoreProductsAsked) {
+          setCnMoreProductsAsked(true);
+          addMsg('bot', `✅ ${item.productName} added.\nAur koi product wapas karna hai?`, ['Haan', 'Nahi'], ['cnMoreProduct', 'cnNoMoreProduct']);
+          setStep('cn-more-products');
+        } else {
+          // Already asked, move forward
+          movePastCnProducts();
+        }
         break;
       }
       case 'cn-amount': {
@@ -598,26 +687,7 @@ export default function ChatbotInvoice() {
   };
 
   const buildCnItems = () => {
-    const inv = cnInvoice;
-    const builtItems: InvoiceItem[] = [];
-    
-    // Product returns from invoice
-    if (inv && (cnReturnType === 'product' || cnReturnType === 'both')) {
-      Array.from(cnSelectedProducts).forEach(idx => {
-        const origItem = inv.items[idx];
-        const qty = cnProductQtys[idx] ?? origItem.quantity;
-        const rate = cnProductRates[idx] ?? origItem.price;
-        builtItems.push({
-          productId: origItem.productId, productName: origItem.productName,
-          hsn: origItem.hsn, quantity: qty, mrp: origItem.mrp,
-          sellingPrice: rate, price: rate, discount: 0,
-          gstPercent: origItem.gstPercent, unit: origItem.unit,
-        });
-      });
-    }
-    
-    // Manual products (when no invoice)
-    builtItems.push(...cnManualProducts);
+    const builtItems: InvoiceItem[] = [...cnProductsDone];
     
     // Amount adjustment
     if (cnAmount > 0) {
@@ -726,105 +796,102 @@ export default function ChatbotInvoice() {
     const invNum = `${firmUser?.firmSettings?.invoicePrefix || 'INV'}-${new Date().getFullYear()}-${String(invoices.filter(i => i.userId === userId).length + 1).padStart(4, '0')}`;
     const invoice: Invoice = {
       id: crypto.randomUUID(), userId, invoiceNumber: invNum, date: new Date().toISOString().split('T')[0],
-      customerId: selectedCustomer!.id, customerName: selectedCustomer!.name,
-      customerGst: selectedCustomer!.gstNumber, customerAddress: selectedCustomer!.address,
-      customerState: buyerState?.name || selectedCustomer?.state || '',
-      customerStateCode: buyerStateCode, vehicleNumber: vehicle, ewayBillNumber: ewayBill,
-      items, totalAmount, totalGst, totalCgst, totalSgst, totalIgst,
-      grandTotal, roundOff, isInterState,
-      placeOfSupply: buyerState?.name || selectedCustomer?.state || sellerState?.name || '',
+      customerId: selectedCustomer?.id || '', customerName: selectedCustomer?.name || '',
+      customerGst: selectedCustomer?.gstNumber || '', customerAddress: selectedCustomer?.address || '',
+      customerState: buyerState?.name || selectedCustomer?.state || '', customerStateCode: buyerState?.code || selectedCustomer?.stateCode || '',
+      vehicleNumber: vehicle, ewayBillNumber: ewayBill, items,
+      totalAmount, totalGst, totalCgst, totalSgst, totalIgst, grandTotal, roundOff,
+      isInterState, placeOfSupply: buyerState?.name || '',
       status: 'pending', paidAmount: 0,
-      createdBy: { id: currentUser!.id, name: currentUser!.role === 'employee' ? currentUser!.username : currentUser!.firmName || currentUser!.username, role: currentUser!.role, timestamp: new Date().toISOString() },
+      createdBy: { id: currentUser!.id, name: currentUser!.firmName || currentUser!.username, role: currentUser!.role, timestamp: new Date().toISOString() },
     };
-    setInvoices(prev => [...prev, invoice]);
-    // Reduce stock
-    setProducts(prev => prev.map(p => { const item = items.find(i => i.productId === p.id); return item ? { ...p, stock: Math.max(0, p.stock - item.quantity) } : p; }));
-    setLastCreatedInvoice(invoice);
-    setDonePaymentStatus('paid');
-    setPartialAmountInput('');
-    setPaymentFinalized(false);
-    setCreatedDebitNote(null);
-    setPanelMode('done');
-  };
-
-  const handlePaymentAsk = (opt: string, optKey?: string) => {
-    if (optKey === 'btnFullPaid' || opt === t('btnFullPaid')) {
-      addMsg('bot', t('chatPaymentHow'), [t('btnCash'), t('btnUPI'), t('btnBankTransfer'), t('btnRTGS'), t('btnCheque')]);
-      setStep('payment-mode');
-    } else if (optKey === 'btnPartialPaid' || opt === t('btnPartialPaid')) {
-      addMsg('bot', t('chatPaymentGrandTotal', { total: lastCreatedInvoice?.grandTotal?.toLocaleString('en-IN') || '0' }));
-      setStep('payment-partial-amount');
-    } else {
-      setPanelMode('done');
-    }
-  };
-
-  const handlePaymentMode = (opt: string) => {
-    const modeMap: Record<string, Payment['mode']> = {};
-    modeMap[t('btnCash')] = 'Cash'; modeMap[t('btnUPI')] = 'UPI'; modeMap[t('btnBankTransfer')] = 'Bank Transfer'; modeMap[t('btnRTGS')] = 'RTGS'; modeMap[t('btnCheque')] = 'Cheque';
-    const mode = modeMap[opt] || 'Cash';
-    const inv = lastCreatedInvoice;
-    if (inv) {
-      const payment: Payment = { id: crypto.randomUUID(), userId, customerId: inv.customerId, invoiceId: inv.id, amount: inv.grandTotal, date: new Date().toISOString().split('T')[0], mode, note: `Full payment for ${inv.invoiceNumber}`, timestamp: new Date().toISOString() };
-      setPayments(prev => [...prev, payment]);
-      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'paid' as const, paidAmount: inv.grandTotal } : i));
-      setLastCreatedInvoice({ ...inv, status: 'paid', paidAmount: inv.grandTotal });
-    }
-    setPanelMode('done');
-  };
-
-  const handlePartialPaymentMode = (opt: string) => {
-    const modeMap: Record<string, Payment['mode']> = {};
-    modeMap[t('btnCash')] = 'Cash'; modeMap[t('btnUPI')] = 'UPI'; modeMap[t('btnBankTransfer')] = 'Bank Transfer'; modeMap[t('btnRTGS')] = 'RTGS'; modeMap[t('btnCheque')] = 'Cheque';
-    const mode = modeMap[opt] || 'Cash';
-    const partialAmt = (currentItem as any)?.price || 0;
-    const inv = lastCreatedInvoice;
-    if (inv) {
-      const payment: Payment = { id: crypto.randomUUID(), userId, customerId: inv.customerId, invoiceId: inv.id, amount: partialAmt, date: new Date().toISOString().split('T')[0], mode, note: `Partial payment for ${inv.invoiceNumber}`, timestamp: new Date().toISOString() };
-      setPayments(prev => [...prev, payment]);
-      const newPaid = (inv.paidAmount || 0) + partialAmt;
-      const newStatus = newPaid >= inv.grandTotal ? 'paid' as const : 'partial' as const;
-      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: newStatus, paidAmount: newPaid } : i));
-      setLastCreatedInvoice({ ...inv, status: newStatus, paidAmount: newPaid });
-    }
-    setCurrentItem({});
-    setPanelMode('done');
-  };
-
-  // FIX 2: Payment status is UI-only. Only finalize on navigate away.
-  const finalizePaymentStatus = () => {
-    const inv = lastCreatedInvoice;
-    if (!inv || paymentFinalized) return;
-    setPaymentFinalized(true);
     
+    // Reduce inventory
+    setProducts(prev => prev.map(p => {
+      const soldItem = items.find(it => it.productId === p.id);
+      if (soldItem) return { ...p, stock: Math.max(0, p.stock - soldItem.quantity) };
+      return p;
+    }));
+    
+    setInvoices(prev => [...prev, invoice]);
+    setLastCreatedInvoice(invoice);
+    
+    // Ask payment mode
+    addMsg('bot', 'Payment kaise liya?',
+      ['💵 Cash', '📱 UPI', '🏦 NEFT', '🏦 RTGS', '🧾 Cheque', '⏳ Baad Mein / Credit']);
+    setStep('payment-mode');
+    // Stay in chat panel for payment mode selection
+  };
+
+  // Finalize invoice payment and move to done screen
+  const finalizeInvoicePayment = (status: 'paid' | 'partial' | 'pending', partialAmt: number, mode: string, ref: string) => {
+    const inv = lastCreatedInvoice;
+    if (!inv) return;
+    
+    if (status === 'paid') {
+      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'paid', paidAmount: inv.grandTotal } : i));
+      const payment: Payment = {
+        id: crypto.randomUUID(), userId, customerId: inv.customerId, invoiceId: inv.id,
+        amount: inv.grandTotal, date: new Date().toISOString().split('T')[0],
+        mode: (mode as Payment['mode']) || 'Cash', note: `${inv.invoiceNumber}${ref ? ' Ref: ' + ref : ''}`,
+        timestamp: new Date().toISOString(),
+      };
+      setPayments(prev => [...prev, payment]);
+      setDonePaymentStatus('paid');
+    } else {
+      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'pending', paidAmount: 0 } : i));
+      const dn = createSilentDebitNote(inv, inv.grandTotal, 'Payment pending');
+      setCreatedDebitNote(dn);
+      setDonePaymentStatus('pending');
+      toast.success(`✅ ${dn.debitNoteNumber} ban gayi`);
+    }
+    
+    setSelectedPaymentMode(mode);
+    setPaymentRef(ref);
+    setPaymentFinalized(true);
+    setPanelMode('done');
+  };
+
+  // Re-finalize when user changes payment status on done screen
+  const finalizePaymentStatus = () => {
+    if (paymentFinalized) return;
+    const inv = lastCreatedInvoice;
+    if (!inv) return;
+    setPaymentFinalized(true);
+
     if (donePaymentStatus === 'paid') {
       setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'paid', paidAmount: inv.grandTotal } : i));
-      const payment: Payment = { id: crypto.randomUUID(), userId, customerId: inv.customerId, invoiceId: inv.id, amount: inv.grandTotal, date: new Date().toISOString().split('T')[0], mode: 'Cash', note: `Full payment for ${inv.invoiceNumber}`, timestamp: new Date().toISOString() };
-      setPayments(prev => [...prev, payment]);
     } else if (donePaymentStatus === 'partial') {
       const amt = Number(partialAmountInput) || 0;
       if (amt > 0 && amt < inv.grandTotal) {
         setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'partial', paidAmount: amt } : i));
-        const payment: Payment = { id: crypto.randomUUID(), userId, customerId: inv.customerId, invoiceId: inv.id, amount: amt, date: new Date().toISOString().split('T')[0], mode: 'Cash', note: `Partial payment for ${inv.invoiceNumber}`, timestamp: new Date().toISOString() };
+        const payment: Payment = {
+          id: crypto.randomUUID(), userId, customerId: inv.customerId, invoiceId: inv.id,
+          amount: amt, date: new Date().toISOString().split('T')[0],
+          mode: (selectedPaymentMode as Payment['mode']) || 'Cash',
+          note: `Partial payment for ${inv.invoiceNumber}`, timestamp: new Date().toISOString(),
+        };
         setPayments(prev => [...prev, payment]);
         const balance = inv.grandTotal - amt;
         const dn = createSilentDebitNote(inv, balance, 'Partial payment — balance due');
         setCreatedDebitNote(dn);
+        toast.success(`✅ ${dn.debitNoteNumber} ban gayi`);
       }
     } else {
       setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'pending', paidAmount: 0 } : i));
       const dn = createSilentDebitNote(inv, inv.grandTotal, 'Payment pending');
       setCreatedDebitNote(dn);
+      toast.success(`✅ ${dn.debitNoteNumber} ban gayi`);
     }
   };
 
   const handleNewInvoice = () => {
-    finalizePaymentStatus();
+    if (!paymentFinalized) finalizePaymentStatus();
     setTimeout(resetChat, 100);
   };
 
   const handleDashboard = () => {
-    finalizePaymentStatus();
+    if (!paymentFinalized) finalizePaymentStatus();
     setTimeout(resetChat, 100);
   };
 
@@ -837,16 +904,17 @@ export default function ChatbotInvoice() {
     setStep('select-customer'); setPanelMode('chat'); setStartChoice(false);
     setSelectedCustomer(null); setNewCust({ name: '', phone: '', gstNumber: '', address: '' });
     setVehicle(''); setEwayBill(''); setItems([]); setCurrentItem({});
-    setSuggestions([]); setEditField(null); setEditInput('');
+    setSuggestions([]); setInvoiceSuggestions([]); setEditField(null); setEditInput('');
     setLastCreatedInvoice(null); setDocType('invoice');
+    setSelectedPaymentMode(''); setPaymentRef('');
     setDonePaymentStatus('paid'); setPartialAmountInput('');
     setPaymentFinalized(false); setCreatedDebitNote(null);
     setCnCustomer(null); setCnInvoice(null);
-    setCnReturnType(null); setCnSelectedProducts(new Set()); setCnProductQtys({});
-    setCnProductRates({}); setCnCurrentProductIndex(0); setCnAmount(0);
-    setCnAmountGst(0); setCnMiscAmount(0); setCnMiscReason(''); setCnMiscGst(0);
+    setCnReturnType(null); setCnProductsQueue([]); setCnProductsDone([]);
+    setCnCurrentProductIndex(0); setCnMoreProductsAsked(false);
+    setCnAmount(0); setCnAmountGst(0); setCnMiscAmount(0); setCnMiscReason(''); setCnMiscGst(0);
     setCnNote(''); setCnItems([]); setCnManualProducts([]); setCnCurrentManualProduct({});
-    setLastCreatedCN(null);
+    setLastCreatedCN(null); setCnTempQty(0);
   };
 
   const firm = currentUser?.role === 'employee' ? users.find(u => u.id === currentUser.parentUserId) : currentUser;
@@ -880,7 +948,7 @@ export default function ChatbotInvoice() {
       case 'new-product-price': return t('phPrice');
       case 'new-product-gst': return t('phGSTRate');
       case 'new-product-unit': return t('phUnit');
-      case 'payment-partial-amount': return t('phAmount');
+      case 'payment-ref': return 'Reference no. (Enter = skip)';
       case 'cn-select-invoice': return 'Invoice no. ya Enter to skip';
       case 'cn-select-products': return 'e.g. 1,2,3';
       case 'cn-product-qty': case 'cn-manual-product-qty': return 'Quantity (Enter = full)';
@@ -894,7 +962,7 @@ export default function ChatbotInvoice() {
     }
   };
 
-  const noInputSteps: ChatStep[] = ['confirm-customer', 'more-products', 'payment-ask', 'payment-mode', 'payment-partial-mode', 'cn-return-type', 'ask-credit-note', 'cn-amount-gst'];
+  const noInputSteps: ChatStep[] = ['confirm-customer', 'more-products', 'payment-mode', 'cn-return-type', 'cn-more-products', 'ask-credit-note', 'cn-amount-gst'];
   const showInput = panelMode === 'chat' && startChoice && !noInputSteps.includes(step);
 
   const totalAmount = items.reduce((s, i) => s + i.price * i.quantity, 0);
@@ -1078,10 +1146,7 @@ export default function ChatbotInvoice() {
               }} className="flex flex-col items-center gap-1 min-h-[64px] py-3">
                 <Download className="w-5 h-5" /><span className="text-[10px]">📄 PDF</span>
               </Button>
-              <Button variant="outline" onClick={async () => {
-                const { downloadInvoiceExcel } = await import('@/lib/exportUtils');
-                // Use CN data as invoice-like for excel
-              }} className="flex flex-col items-center gap-1 min-h-[64px] py-3">
+              <Button variant="outline" className="flex flex-col items-center gap-1 min-h-[64px] py-3">
                 <FileText className="w-5 h-5" /><span className="text-[10px]">📊 Excel</span>
               </Button>
             </div>
@@ -1170,6 +1235,7 @@ export default function ChatbotInvoice() {
               <p className="text-sm text-muted-foreground">Invoice No: {lastCreatedInvoice.invoiceNumber}</p>
               <p className="text-sm text-muted-foreground">Customer: {lastCreatedInvoice.customerName}</p>
               <p className="text-xl font-bold text-foreground">₹{lastCreatedInvoice.grandTotal.toLocaleString('en-IN')}</p>
+              {selectedPaymentMode && <p className="text-sm text-muted-foreground">Payment: {selectedPaymentMode} ✓</p>}
             </div>
 
             {/* Action buttons */}
@@ -1196,68 +1262,65 @@ export default function ChatbotInvoice() {
               <Share2 className="w-4 h-4 mr-2" /> 📱 Share WhatsApp
             </Button>
 
-            {/* Payment Status Section — UI only until finalize */}
-            {!paymentFinalized && (
-              <div className="glass-card p-3 space-y-3">
-                <p className="text-sm font-semibold text-foreground text-center">── Payment Status ──</p>
-                <div className="grid grid-cols-3 gap-2">
-                  <Button
-                    variant={donePaymentStatus === 'paid' ? 'default' : 'outline'}
-                    className={`min-h-[44px] text-xs ${donePaymentStatus === 'paid' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}
-                    onClick={() => setDonePaymentStatus('paid')}
-                  >✅ Paid</Button>
-                  <Button
-                    variant={donePaymentStatus === 'partial' ? 'default' : 'outline'}
-                    className={`min-h-[44px] text-xs ${donePaymentStatus === 'partial' ? 'bg-amber-600 hover:bg-amber-700' : ''}`}
-                    onClick={() => setDonePaymentStatus('partial')}
-                  >⚡ Partial</Button>
-                  <Button
-                    variant={donePaymentStatus === 'pending' ? 'default' : 'outline'}
-                    className={`min-h-[44px] text-xs ${donePaymentStatus === 'pending' ? 'bg-red-600 hover:bg-red-700' : ''}`}
-                    onClick={() => setDonePaymentStatus('pending')}
-                  >⏳ Not Now</Button>
-                </div>
-                
-                {/* FIX 3: Show context based on selection */}
-                {donePaymentStatus === 'partial' && (
-                  <div className="space-y-2">
-                    <Input
-                      type="number"
-                      value={partialAmountInput}
-                      onChange={e => setPartialAmountInput(e.target.value)}
-                      placeholder="Kitna payment mila?"
-                    />
-                    <p className="text-xs text-muted-foreground text-center">⚡ Debit note auto-banega balance ke liye</p>
-                  </div>
-                )}
-
-                {donePaymentStatus === 'pending' && (
-                  <p className="text-xs text-muted-foreground text-center">⏳ Debit note auto-banega full amount ke liye</p>
-                )}
-
-                {donePaymentStatus === 'paid' && (
-                  <div className="text-center space-y-2 pt-2 border-t border-muted">
-                    <p className="text-xs text-muted-foreground">Kya credit note banana hai?</p>
-                    <div className="flex gap-2 justify-center">
-                      <Button size="sm" variant="outline" onClick={() => {
-                        finalizePaymentStatus();
-                        setDocType('credit-note');
-                        setCnCustomer({ id: lastCreatedInvoice!.customerId, userId, name: lastCreatedInvoice!.customerName, phone: '', gstNumber: lastCreatedInvoice!.customerGst, address: lastCreatedInvoice!.customerAddress });
-                        setCnInvoice(lastCreatedInvoice);
-                        addMsg('bot', 'Kya return/adjust karna hai?',
-                          ['📦 Product Wapas', '💰 Amount Adjust', '📦+💰 Dono', '📝 Miscellaneous Only'],
-                          ['cnProduct', 'cnAmount', 'cnBoth', 'cnMisc']);
-                        setStep('cn-return-type');
-                        setPanelMode('chat');
-                      }} className="min-h-[36px]">Haan</Button>
-                      <Button size="sm" variant="ghost" className="min-h-[36px]">Nahi</Button>
-                    </div>
-                  </div>
-                )}
+            {/* Payment Status Section — can change before navigating away */}
+            <div className="glass-card p-3 space-y-3">
+              <p className="text-sm font-semibold text-foreground text-center">── Payment Status ──</p>
+              <div className="grid grid-cols-3 gap-2">
+                <Button
+                  variant={donePaymentStatus === 'paid' ? 'default' : 'outline'}
+                  className={`min-h-[44px] text-xs ${donePaymentStatus === 'paid' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}
+                  onClick={() => { setDonePaymentStatus('paid'); setPaymentFinalized(false); setCreatedDebitNote(null); }}
+                >✅ Paid</Button>
+                <Button
+                  variant={donePaymentStatus === 'partial' ? 'default' : 'outline'}
+                  className={`min-h-[44px] text-xs ${donePaymentStatus === 'partial' ? 'bg-amber-600 hover:bg-amber-700' : ''}`}
+                  onClick={() => { setDonePaymentStatus('partial'); setPaymentFinalized(false); setCreatedDebitNote(null); }}
+                >⚡ Partial</Button>
+                <Button
+                  variant={donePaymentStatus === 'pending' ? 'default' : 'outline'}
+                  className={`min-h-[44px] text-xs ${donePaymentStatus === 'pending' ? 'bg-red-600 hover:bg-red-700' : ''}`}
+                  onClick={() => { setDonePaymentStatus('pending'); setPaymentFinalized(false); setCreatedDebitNote(null); }}
+                >⏳ Not Now</Button>
               </div>
-            )}
+              
+              {donePaymentStatus === 'partial' && (
+                <div className="space-y-2">
+                  <Input
+                    type="number"
+                    value={partialAmountInput}
+                    onChange={e => setPartialAmountInput(e.target.value)}
+                    placeholder="Kitna payment mila?"
+                  />
+                  <p className="text-xs text-muted-foreground text-center">⚡ Debit note auto-banega balance ke liye</p>
+                </div>
+              )}
 
-            {/* FIX 4: Show created debit note info after finalization */}
+              {donePaymentStatus === 'pending' && (
+                <p className="text-xs text-muted-foreground text-center">⏳ Debit note auto-banega full amount ke liye</p>
+              )}
+
+              {donePaymentStatus === 'paid' && (
+                <div className="text-center space-y-2 pt-2 border-t border-muted">
+                  <p className="text-xs text-muted-foreground">Kya credit note banana hai?</p>
+                  <div className="flex gap-2 justify-center">
+                    <Button size="sm" variant="outline" onClick={() => {
+                      if (!paymentFinalized) finalizePaymentStatus();
+                      setDocType('credit-note');
+                      setCnCustomer({ id: lastCreatedInvoice!.customerId, userId, name: lastCreatedInvoice!.customerName, phone: '', gstNumber: lastCreatedInvoice!.customerGst, address: lastCreatedInvoice!.customerAddress });
+                      setCnInvoice(lastCreatedInvoice);
+                      addMsg('bot', 'Kya return/adjust karna hai?',
+                        ['📦 Product Wapas', '💰 Amount Adjust', '📦+💰 Dono', '📝 Miscellaneous Only'],
+                        ['cnProduct', 'cnAmount', 'cnBoth', 'cnMisc']);
+                      setStep('cn-return-type');
+                      setPanelMode('chat');
+                    }} className="min-h-[36px]">Haan</Button>
+                    <Button size="sm" variant="ghost" className="min-h-[36px]">Nahi</Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Show created debit note info after finalization */}
             {paymentFinalized && createdDebitNote && (
               <div className="glass-card p-3 space-y-2">
                 <p className="text-sm font-semibold text-foreground">
@@ -1307,6 +1370,30 @@ export default function ChatbotInvoice() {
               ))}
               <div ref={chatEndRef} />
             </div>
+
+            {/* Invoice suggestions for CN flow */}
+            {invoiceSuggestions.length > 0 && step === 'cn-select-invoice' && (
+              <div className="border-t bg-card px-3 py-2 space-y-1 max-h-64 overflow-y-auto">
+                <p className="text-xs text-muted-foreground font-medium mb-1">Invoices:</p>
+                {invoiceSuggestions.map(inv => (
+                  <button key={inv.id} onClick={() => selectInvoiceForCN(inv)}
+                    className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-muted transition-colors border border-muted mb-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-sm text-foreground">{inv.invoiceNumber}</span>
+                      <span className="text-sm font-bold text-foreground">₹{inv.grandTotal.toLocaleString('en-IN')}</span>
+                    </div>
+                    <div className="flex items-center justify-between mt-0.5">
+                      <span className="text-xs text-muted-foreground">{inv.customerName} • {inv.date}</span>
+                      <span className={`text-xs ${inv.status === 'paid' ? 'text-emerald-600' : 'text-amber-600'}`}>{inv.status}</span>
+                    </div>
+                  </button>
+                ))}
+                <button onClick={() => { setInput(''); setInvoiceSuggestions([]); handleSend(); }}
+                  className="w-full text-center px-3 py-2.5 rounded-lg hover:bg-muted transition-colors border border-dashed border-muted-foreground/30 text-sm text-muted-foreground">
+                  ⏭️ Invoice Nahi Hai / Skip
+                </button>
+              </div>
+            )}
 
             {suggestions.length > 0 && (step === 'select-customer' || step === 'add-product' || step === 'cn-select-customer' || step === 'cn-search-product') && (
               <div className="border-t bg-card px-3 py-2 space-y-1 max-h-48 overflow-y-auto">
