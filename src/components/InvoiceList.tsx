@@ -466,9 +466,20 @@ export default function InvoiceList({ readOnly, filterUserId, filterEmployeeId }
     );
   }
 
+  if (showManualForm) {
+    return <ManualInvoiceForm onClose={() => setShowManualForm(false)} />;
+  }
+
   return (
     <div className="animate-fade-in space-y-3 md:space-y-4">
-      <h2 className="text-lg md:text-xl font-bold text-foreground">📋 Invoices</h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-lg md:text-xl font-bold text-foreground">📋 Invoices</h2>
+        {!readOnly && (
+          <Button size="sm" className="min-h-[36px]" onClick={() => setShowManualForm(true)}>
+            <Plus className="w-4 h-4 mr-1" /> Manually Banao
+          </Button>
+        )}
+      </div>
 
       {readOnly && (
         <div className="bg-warning/10 border border-warning/20 rounded-lg px-3 md:px-4 py-2 flex items-center gap-2 text-xs md:text-sm">
