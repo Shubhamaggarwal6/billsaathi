@@ -271,7 +271,10 @@ export async function initialDownload(
     onProgress?.(table, false);
     try {
       let query = (supabase.from(table) as any).select('*');
-      if (table !== 'invoice_items') {
+      // tenants table uses 'id', not 'tenant_id'
+      if (table === 'tenants') {
+        query = query.eq('id', tenantId);
+      } else if (table !== 'invoice_items') {
         query = query.eq('tenant_id', tenantId);
       }
       // For invoices, limit to last 2 years
