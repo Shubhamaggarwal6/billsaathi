@@ -50,6 +50,7 @@ export default function UserDashboard() {
     { id: 'debit-notes', label: 'Debit Notes', icon: <Receipt className="w-5 h-5" /> },
     { id: 'customers', label: t('customers'), icon: <Users className="w-5 h-5" /> },
     { id: 'products', label: t('products'), icon: <Package className="w-5 h-5" /> },
+    { id: 'suppliers', label: 'Suppliers', icon: <Factory className="w-5 h-5" /> },
     { id: 'purchases', label: t('purchases'), icon: <ShoppingCart className="w-5 h-5" /> },
     { id: 'reports', label: t('reports'), icon: <BarChart3 className="w-5 h-5" /> },
     { id: 'employees', label: t('employees'), icon: <UserPlus className="w-5 h-5" /> },
