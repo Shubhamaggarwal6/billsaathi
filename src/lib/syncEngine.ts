@@ -1,6 +1,8 @@
 import { db, type SyncQueueItem, type SyncMetadata, nowISO } from './localDb';
 import { supabase } from '@/integrations/supabase/client';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const SYNC_TABLES = ['tenants', 'users', 'customers', 'products', 'invoices', 'invoice_items', 'payments', 'purchases'] as const;
 type SyncTable = typeof SYNC_TABLES[number];
 
@@ -65,11 +67,20 @@ async function pushChanges(): Promise<void> {
     .sortBy('created_at');
 
   for (const item of pending) {
+    // Skip items with non-UUID record IDs — they can never sync
+    if (!UUID_REGEX.test(item.record_id)) {
+      await db.sync_queue.update(item.id, {
+        status: 'FAILED',
+        retry_count: 99,
+        last_error: 'Record ID is not a valid UUID — demo data cannot sync',
+      });
+      continue;
+    }
+
     await db.sync_queue.update(item.id, { status: 'SYNCING' });
     try {
       const table = item.table_name as SyncTable;
       const payload = { ...item.payload };
-      // Remove fields not in supabase
       delete payload.is_local;
 
       if (item.operation === 'CREATE') {
@@ -101,6 +112,12 @@ async function pushChanges(): Promise<void> {
 
 // PULL server changes to local
 async function pullChanges(tenantId: string): Promise<void> {
+  // Don't pull if tenantId is not a valid UUID (demo data)
+  if (!UUID_REGEX.test(tenantId)) {
+    console.warn('Skipping pull — tenantId is not a valid UUID:', tenantId);
+    return;
+  }
+
   for (const table of SYNC_TABLES) {
     try {
       const meta = await db.sync_metadata.get(table);
@@ -112,7 +129,10 @@ async function pullChanges(tenantId: string): Promise<void> {
         .order('updated_at', { ascending: true });
 
       // Filter by tenant_id for tenant-scoped tables
-      if (table !== 'invoice_items') {
+      // tenants table uses 'id' not 'tenant_id'
+      if (table === 'tenants') {
+        query = query.eq('id', tenantId);
+      } else if (table !== 'invoice_items') {
         query = query.eq('tenant_id', tenantId);
       }
 
@@ -167,6 +187,10 @@ async function pullChanges(tenantId: string): Promise<void> {
 
 export async function syncNow(tenantId?: string): Promise<void> {
   if (syncInProgress || !navigator.onLine) return;
+  // Skip sync entirely if tenantId is not a valid UUID (demo mode)
+  if (tenantId && !UUID_REGEX.test(tenantId)) {
+    return;
+  }
   syncInProgress = true;
   await notifyListeners();
 
@@ -247,7 +271,10 @@ export async function initialDownload(
     onProgress?.(table, false);
     try {
       let query = (supabase.from(table) as any).select('*');
-      if (table !== 'invoice_items') {
+      // tenants table uses 'id', not 'tenant_id'
+      if (table === 'tenants') {
+        query = query.eq('id', tenantId);
+      } else if (table !== 'invoice_items') {
         query = query.eq('tenant_id', tenantId);
       }
       // For invoices, limit to last 2 years
