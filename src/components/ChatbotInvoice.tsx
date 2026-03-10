@@ -85,8 +85,8 @@ export default function ChatbotInvoice() {
       setMessages([{
         from: 'bot',
         text: '🙏 ' + t('chatWelcome'),
-        options: ['🧾 Invoice Banao', '📋 Credit Note Banao', '📋 Debit Note Banao'],
-        optionKeys: ['startInvoice', 'startCreditNote', 'startDebitNote'],
+        options: ['🧾 Invoice Banao', '📋 Credit Note Banao'],
+        optionKeys: ['startInvoice', 'startCreditNote'],
       }]);
       setInitialized(true);
     }
