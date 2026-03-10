@@ -12,15 +12,18 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 function friendlyError(err: string | undefined, t: (k: string) => string): string {
   if (!err) return t('syncErrorGeneric');
   const e = err.toLowerCase();
+  if (e.includes('demo data')) return t('syncErrorDemo') || 'Demo data — cannot sync';
   if (e.includes('uuid') || e.includes('invalid input syntax')) return t('syncErrorUuid');
   if (e.includes('foreign key') || e.includes('violates')) return t('syncErrorFk');
   if (e.includes('jwt') || e.includes('token') || e.includes('auth')) return t('syncErrorJwt');
+  if (e.includes('tenant_id does not exist') || e.includes('42703')) return t('syncErrorGeneric');
   return t('syncErrorGeneric');
 }
 
 function isRetryable(err: string | undefined): boolean {
   if (!err) return true;
   const e = err.toLowerCase();
+  if (e.includes('demo data')) return false;
   if (e.includes('uuid') || e.includes('invalid input syntax')) return false;
   if (e.includes('foreign key') || e.includes('violates')) return false;
   return true;
@@ -37,14 +40,14 @@ export default function SyncStatusBadge({ tenantId }: { tenantId?: string }) {
     return onSyncChange(setInfo);
   }, []);
 
-  // Clean bad UUID records on mount
+  // Clean bad UUID records and demo data records on mount
   useEffect(() => {
     (async () => {
       try {
-        const failed = await db.sync_queue.where('status').equals('FAILED').toArray();
-        const badIds = failed.filter(f => !UUID_REGEX.test(f.record_id));
-        if (badIds.length > 0) {
-          await Promise.all(badIds.map(b => db.sync_queue.delete(b.id)));
+        const allFailed = await db.sync_queue.where('status').anyOf('FAILED', 'PENDING').toArray();
+        const badItems = allFailed.filter(f => !UUID_REGEX.test(f.record_id));
+        if (badItems.length > 0) {
+          await Promise.all(badItems.map(b => db.sync_queue.delete(b.id)));
           getSyncInfo().then(setInfo);
         }
       } catch {}
@@ -74,6 +77,12 @@ export default function SyncStatusBadge({ tenantId }: { tenantId?: string }) {
     getSyncInfo().then(setInfo);
   };
 
+  const dismissAllFailed = async () => {
+    const failed = await db.sync_queue.where('status').equals('FAILED').toArray();
+    await Promise.all(failed.map(f => db.sync_queue.delete(f.id)));
+    getSyncInfo().then(setInfo);
+  };
+
   return (
     <>
       <button
@@ -82,7 +91,7 @@ export default function SyncStatusBadge({ tenantId }: { tenantId?: string }) {
         title={labelText}
       >
         {icon}
-        {!isMobile && <span className="text-xs font-medium text-foreground truncate max-w-[100px]">{labelText}</span>}
+        {!isMobile && <span className="text-xs font-medium text-foreground truncate max-w-[90px]">{labelText}</span>}
         {(info.pendingCount > 0 || info.failedCount > 0) && (
           <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
             {info.pendingCount + info.failedCount}
@@ -92,11 +101,11 @@ export default function SyncStatusBadge({ tenantId }: { tenantId?: string }) {
 
       {panelOpen && (
         <>
-          <div className="fixed inset-0 bg-foreground/30 z-50" onClick={() => setPanelOpen(false)} />
-          <div className={`fixed z-50 bg-card border shadow-lg animate-in duration-200 ${
+          <div className="fixed inset-0 bg-foreground/30 z-[60]" onClick={() => setPanelOpen(false)} />
+          <div className={`fixed z-[61] bg-card border shadow-lg animate-in duration-200 ${
             isMobile
               ? 'bottom-0 left-0 right-0 rounded-t-2xl slide-in-from-bottom-2 max-h-[70vh] overflow-y-auto'
-              : 'top-14 right-4 w-80 max-w-[calc(100vw-2rem)] rounded-xl slide-in-from-top-2 max-h-[400px] overflow-y-auto'
+              : 'top-2 right-2 w-80 max-w-[calc(100vw-1rem)] rounded-xl slide-in-from-top-2 max-h-[80vh] overflow-y-auto'
           }`}>
             {isMobile && (
               <div className="flex justify-center pt-3 pb-1">
@@ -104,10 +113,10 @@ export default function SyncStatusBadge({ tenantId }: { tenantId?: string }) {
               </div>
             )}
             <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="font-semibold text-foreground flex items-center gap-2">
+              <h3 className="font-semibold text-foreground flex items-center gap-2 text-sm">
                 🔄 {t('syncStatus')}
               </h3>
-              <button onClick={() => setPanelOpen(false)} className="text-muted-foreground hover:text-foreground">
+              <button onClick={() => setPanelOpen(false)} className="text-muted-foreground hover:text-foreground p-1">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -144,13 +153,18 @@ export default function SyncStatusBadge({ tenantId }: { tenantId?: string }) {
 
               {info.failedItems.length > 0 && (
                 <div className="space-y-1">
-                  <p className="text-xs font-medium text-destructive">{t('failedLabel')}</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-destructive">{t('failedLabel')}</p>
+                    <Button size="sm" variant="ghost" className="h-6 text-[10px] px-2 text-destructive" onClick={dismissAllFailed}>
+                      {t('dismiss')} All
+                    </Button>
+                  </div>
                   {info.failedItems.slice(0, 5).map(item => {
                     const retryable = isRetryable(item.last_error);
                     return (
                       <div key={item.id} className="text-xs bg-destructive/10 rounded p-2 space-y-1">
                         <p className="text-foreground capitalize font-medium">{item.table_name}: {item.operation}</p>
-                        <p className="text-muted-foreground">{friendlyError(item.last_error, t)}</p>
+                        <p className="text-muted-foreground break-words">{friendlyError(item.last_error, t)}</p>
                         <p className="text-muted-foreground">{t('attempts')}: {item.retry_count}/5</p>
                         <div className="flex gap-1 pt-1">
                           {retryable ? (
@@ -166,6 +180,9 @@ export default function SyncStatusBadge({ tenantId }: { tenantId?: string }) {
                       </div>
                     );
                   })}
+                  {info.failedItems.length > 5 && (
+                    <p className="text-xs text-muted-foreground text-center">+{info.failedItems.length - 5} more</p>
+                  )}
                 </div>
               )}
 
