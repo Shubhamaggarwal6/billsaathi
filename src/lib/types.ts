@@ -227,6 +227,23 @@ export interface DebitNote {
   createdBy?: InvoiceCreator;
 }
 
+export interface Supplier {
+  id: string;
+  userId: string;
+  name: string;
+  phone: string;
+  email: string;
+  gstNumber: string;
+  address: string;
+  city: string;
+  state: string;
+  pin: string;
+  bankName: string;
+  bankAccount: string;
+  bankIfsc: string;
+  openingBalance: number;
+}
+
 export interface SubscriptionStatus {
   status: 'active' | 'warning' | 'critical' | 'expired';
   color: string;

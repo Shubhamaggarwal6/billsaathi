@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { User, Customer, Product, Invoice, Payment, PurchaseEntry, CreditNote, DebitNote } from '@/lib/types';
+import { User, Customer, Product, Invoice, Payment, PurchaseEntry, CreditNote, DebitNote, Supplier } from '@/lib/types';
 import { initialUsers, initialCustomers, initialProducts, initialInvoices, initialPayments, initialPurchases } from '@/lib/demoData';
 import { db, queueSync, generateId, nowISO, type LocalCustomer, type LocalProduct, type LocalInvoice, type LocalInvoiceItem, type LocalPayment, type LocalPurchase, type LocalCreditNote, type LocalCreditNoteItem, type LocalDebitNote } from '@/lib/localDb';
 import { triggerSync, startAutoSync } from '@/lib/syncEngine';
@@ -226,6 +226,7 @@ interface AppState {
   purchases: PurchaseEntry[];
   creditNotes: CreditNote[];
   debitNotes: DebitNote[];
+  suppliers: Supplier[];
   setCurrentUser: (u: User | null) => void;
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
   setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
@@ -235,6 +236,7 @@ interface AppState {
   setPurchases: React.Dispatch<React.SetStateAction<PurchaseEntry[]>>;
   setCreditNotes: React.Dispatch<React.SetStateAction<CreditNote[]>>;
   setDebitNotes: React.Dispatch<React.SetStateAction<DebitNote[]>>;
+  setSuppliers: React.Dispatch<React.SetStateAction<Supplier[]>>;
   dbReady: boolean;
 }
 
@@ -250,6 +252,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [purchases, setPurchasesRaw] = useState<PurchaseEntry[]>(() => loadFromStorage('bs_purchases', initialPurchases));
   const [creditNotes, setCreditNotesRaw] = useState<CreditNote[]>(() => loadFromStorage('bs_creditNotes', []));
   const [debitNotes, setDebitNotesRaw] = useState<DebitNote[]>(() => loadFromStorage('bs_debitNotes', []));
+  const [suppliers, setSuppliersRaw] = useState<Supplier[]>(() => loadFromStorage('bs_suppliers', []));
   const [dbReady, setDbReady] = useState(false);
 
   // Load from IndexedDB on mount
@@ -520,12 +523,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, [currentUser?.id]);
 
+  const setSuppliers: React.Dispatch<React.SetStateAction<Supplier[]>> = useCallback((action) => {
+    setSuppliersRaw(prev => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      saveToStorage('bs_suppliers', next);
+      return next;
+    });
+  }, []);
+
   return (
     <AppContext.Provider value={{
       currentUser, users, customers, products, invoices, payments, purchases,
-      creditNotes, debitNotes,
+      creditNotes, debitNotes, suppliers,
       setCurrentUser, setUsers, setCustomers, setProducts, setInvoices, setPayments, setPurchases,
-      setCreditNotes, setDebitNotes,
+      setCreditNotes, setDebitNotes, setSuppliers,
       dbReady,
     }}>
       {children}
