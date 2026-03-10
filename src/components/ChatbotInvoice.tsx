@@ -692,17 +692,21 @@ export default function ChatbotInvoice() {
               </div>
             </div>
 
-            <div className="flex gap-2 pt-2">
-              <Button onClick={createInvoice} className="flex-1 min-h-[48px]" disabled={items.length === 0}>
-                {t('btnCreateInvoice')}
-              </Button>
-              <Button variant="outline" onClick={() => setPanelMode('edit')} className="min-h-[48px]">
-                {t('btnEditInvoice')}
+            </div>
+            {/* Fixed buttons outside scroll area */}
+            <div className="shrink-0 border-t p-3 space-y-2 bg-card">
+              <div className="flex gap-2">
+                <Button onClick={createInvoice} className="flex-1 min-h-[48px]" disabled={items.length === 0}>
+                  ✅ {t('btnCreateInvoice')}
+                </Button>
+                <Button variant="outline" onClick={() => setPanelMode('edit')} className="min-h-[48px]">
+                  ✏️ {t('btnEditInvoice')}
+                </Button>
+              </div>
+              <Button variant="ghost" className="w-full text-destructive min-h-[44px]" onClick={resetChat}>
+                {t('btnCancelAll')}
               </Button>
             </div>
-            <Button variant="ghost" className="w-full text-destructive min-h-[44px]" onClick={resetChat}>
-              {t('btnCancelAll')}
-            </Button>
           </div>
         )}
 

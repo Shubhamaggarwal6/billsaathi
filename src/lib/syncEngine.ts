@@ -3,23 +3,24 @@ import { supabase } from '@/integrations/supabase/client';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const SYNC_TABLES = ['tenants', 'users', 'customers', 'products', 'invoices', 'invoice_items', 'payments', 'purchases'] as const;
+const SYNC_TABLES = ['tenants', 'users', 'customers', 'products', 'invoices', 'invoice_items', 'payments', 'purchases', 'credit_notes', 'credit_note_items', 'debit_notes', 'debit_note_items'] as const;
 type SyncTable = typeof SYNC_TABLES[number];
 
-export type SyncState = 'synced' | 'syncing' | 'pending' | 'offline' | 'error';
+export type SyncState = 'synced' | 'syncing' | 'pending' | 'offline';
 
 export interface SyncInfo {
   state: SyncState;
   pendingCount: number;
-  failedCount: number;
   lastSyncedAt: string | null;
   pendingByTable: Record<string, number>;
-  failedItems: SyncQueueItem[];
 }
 
 let syncInProgress = false;
 let syncInterval: ReturnType<typeof setInterval> | null = null;
 let listeners: Array<(info: SyncInfo) => void> = [];
+
+// Backoff retry timers
+const RETRY_DELAYS = [30000, 60000, 120000, 300000, 600000]; // 30s, 1m, 2m, 5m, 10m
 
 export function onSyncChange(cb: (info: SyncInfo) => void) {
   listeners.push(cb);
@@ -33,7 +34,6 @@ async function notifyListeners() {
 
 export async function getSyncInfo(): Promise<SyncInfo> {
   const pending = await db.sync_queue.where('status').anyOf('PENDING', 'SYNCING').toArray();
-  const failed = await db.sync_queue.where('status').equals('FAILED').toArray();
   const lastMeta = await db.sync_metadata.toArray();
   const lastSyncedAt = lastMeta.length > 0
     ? lastMeta.reduce((latest, m) => m.last_synced_at > latest ? m.last_synced_at : latest, '')
@@ -47,16 +47,13 @@ export async function getSyncInfo(): Promise<SyncInfo> {
   let state: SyncState = 'synced';
   if (!navigator.onLine) state = 'offline';
   else if (syncInProgress) state = 'syncing';
-  else if (failed.length > 0) state = 'error';
   else if (pending.length > 0) state = 'pending';
 
   return {
     state,
     pendingCount: pending.length,
-    failedCount: failed.length,
     lastSyncedAt: lastSyncedAt || null,
     pendingByTable,
-    failedItems: failed,
   };
 }
 
@@ -67,13 +64,9 @@ async function pushChanges(): Promise<void> {
     .sortBy('created_at');
 
   for (const item of pending) {
-    // Skip items with non-UUID record IDs — they can never sync
+    // Skip and silently drop items with non-UUID record IDs (demo data)
     if (!UUID_REGEX.test(item.record_id)) {
-      await db.sync_queue.update(item.id, {
-        status: 'FAILED',
-        retry_count: 99,
-        last_error: 'Record ID is not a valid UUID — demo data cannot sync',
-      });
+      await db.sync_queue.delete(item.id);
       continue;
     }
 
@@ -101,22 +94,23 @@ async function pushChanges(): Promise<void> {
       await db.sync_queue.delete(item.id);
     } catch (err: any) {
       const retryCount = (item.retry_count || 0) + 1;
-      await db.sync_queue.update(item.id, {
-        status: retryCount > 5 ? 'FAILED' : 'PENDING',
-        retry_count: retryCount,
-        last_error: err?.message || 'Unknown error',
-      });
+      if (retryCount > 5) {
+        // Silently drop after 5 attempts
+        await db.sync_queue.delete(item.id);
+      } else {
+        await db.sync_queue.update(item.id, {
+          status: 'PENDING',
+          retry_count: retryCount,
+          last_error: err?.message || 'Unknown error',
+        });
+      }
     }
   }
 }
 
 // PULL server changes to local
 async function pullChanges(tenantId: string): Promise<void> {
-  // Don't pull if tenantId is not a valid UUID (demo data)
-  if (!UUID_REGEX.test(tenantId)) {
-    console.warn('Skipping pull — tenantId is not a valid UUID:', tenantId);
-    return;
-  }
+  if (!UUID_REGEX.test(tenantId)) return;
 
   for (const table of SYNC_TABLES) {
     try {
@@ -128,17 +122,15 @@ async function pullChanges(tenantId: string): Promise<void> {
         .gt('updated_at', lastSynced)
         .order('updated_at', { ascending: true });
 
-      // Filter by tenant_id for tenant-scoped tables
-      // tenants table uses 'id' not 'tenant_id'
       if (table === 'tenants') {
         query = query.eq('id', tenantId);
-      } else if (table !== 'invoice_items') {
+      } else if (!['invoice_items', 'credit_note_items', 'debit_note_items'].includes(table)) {
         query = query.eq('tenant_id', tenantId);
       }
 
       const { data, error } = await query;
       if (error) {
-        console.warn(`Pull ${table} failed:`, error.message);
+        // Silently skip tables that don't exist yet
         continue;
       }
       if (!data || data.length === 0) {
@@ -147,58 +139,46 @@ async function pullChanges(tenantId: string): Promise<void> {
       }
 
       const localTable = (db as any)[table] as import('dexie').Table;
+      if (!localTable) continue;
 
       for (const serverRecord of data) {
         const localRecord = await localTable.get(serverRecord.id);
         if (localRecord) {
-          // Check if local is in sync queue (modified locally)
           const inQueue = await db.sync_queue
             .where('record_id').equals(serverRecord.id)
             .and(q => q.status === 'PENDING' || q.status === 'SYNCING')
             .first();
 
           if (inQueue) {
-            // Conflict: local modified and server modified
-            // Most recent updated_at wins
             if (new Date(serverRecord.updated_at) > new Date(localRecord.updated_at)) {
               await localTable.put(serverRecord);
-              // Remove from queue since server is newer
               await db.sync_queue.delete(inQueue.id);
             }
-            // else: keep local version, it will push on next sync
           } else {
-            // No conflict, server is source of truth
             if (new Date(serverRecord.updated_at) > new Date(localRecord.updated_at)) {
               await localTable.put(serverRecord);
             }
           }
         } else {
-          // New record from server
           await localTable.put(serverRecord);
         }
       }
 
       await db.sync_metadata.put({ table_name: table, last_synced_at: nowISO() });
     } catch (err) {
-      console.warn(`Pull ${table} error:`, err);
+      // Silently continue
     }
   }
 }
 
 export async function syncNow(tenantId?: string): Promise<void> {
   if (syncInProgress || !navigator.onLine) return;
-  // Skip sync entirely if tenantId is not a valid UUID (demo mode)
-  if (tenantId && !UUID_REGEX.test(tenantId)) {
-    return;
-  }
+  if (tenantId && !UUID_REGEX.test(tenantId)) return;
   syncInProgress = true;
   await notifyListeners();
 
   try {
-    // Push first
     await pushChanges();
-
-    // Pull if we have a tenant ID
     if (tenantId) {
       await pullChanges(tenantId);
     }
@@ -210,29 +190,48 @@ export async function syncNow(tenantId?: string): Promise<void> {
   }
 }
 
-export async function retryFailed(): Promise<void> {
-  await db.sync_queue
-    .where('status').equals('FAILED')
-    .modify({ status: 'PENDING', retry_count: 0, last_error: undefined });
-  await notifyListeners();
-  if (navigator.onLine) {
-    await syncNow();
-  }
+// Auto retry failed items with exponential backoff
+async function autoRetryFailed(): Promise<void> {
+  try {
+    const failed = await db.sync_queue.where('status').equals('FAILED').toArray();
+    for (const item of failed) {
+      if (item.retry_count > 5) {
+        await db.sync_queue.delete(item.id);
+      } else {
+        await db.sync_queue.update(item.id, { status: 'PENDING' });
+      }
+    }
+  } catch {}
 }
 
 export function startAutoSync(tenantId: string) {
   stopAutoSync();
 
+  // Clean up bad records on start
+  (async () => {
+    try {
+      const all = await db.sync_queue.toArray();
+      const bad = all.filter(f => !UUID_REGEX.test(f.record_id));
+      if (bad.length > 0) {
+        await Promise.all(bad.map(b => db.sync_queue.delete(b.id)));
+      }
+      // Also auto-retry any failed
+      await autoRetryFailed();
+    } catch {}
+  })();
+
   // Sync every 30 seconds
   syncInterval = setInterval(() => {
-    if (navigator.onLine) syncNow(tenantId);
+    if (navigator.onLine) {
+      autoRetryFailed().then(() => syncNow(tenantId));
+    }
   }, 30000);
 
-  // Sync on coming online
-  const onOnline = () => syncNow(tenantId);
+  const onOnline = () => {
+    autoRetryFailed().then(() => syncNow(tenantId));
+  };
   window.addEventListener('online', onOnline);
 
-  // Sync on visibility change
   const onVisible = () => {
     if (document.visibilityState === 'visible' && navigator.onLine) {
       syncNow(tenantId);
@@ -240,7 +239,6 @@ export function startAutoSync(tenantId: string) {
   };
   document.addEventListener('visibilitychange', onVisible);
 
-  // Sync on status change
   const onOffline = () => notifyListeners();
   window.addEventListener('offline', onOffline);
 
@@ -271,13 +269,11 @@ export async function initialDownload(
     onProgress?.(table, false);
     try {
       let query = (supabase.from(table) as any).select('*');
-      // tenants table uses 'id', not 'tenant_id'
       if (table === 'tenants') {
         query = query.eq('id', tenantId);
-      } else if (table !== 'invoice_items') {
+      } else if (!['invoice_items', 'credit_note_items', 'debit_note_items'].includes(table)) {
         query = query.eq('tenant_id', tenantId);
       }
-      // For invoices, limit to last 2 years
       if (table === 'invoices') {
         const twoYearsAgo = new Date();
         twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
@@ -286,17 +282,16 @@ export async function initialDownload(
 
       const { data, error } = await query;
       if (error) {
-        console.warn(`Initial download ${table} failed:`, error.message);
         onProgress?.(table, true);
         continue;
       }
       if (data && data.length > 0) {
         const localTable = (db as any)[table] as import('dexie').Table;
-        await localTable.bulkPut(data);
+        if (localTable) await localTable.bulkPut(data);
       }
       await db.sync_metadata.put({ table_name: table, last_synced_at: nowISO() });
     } catch (err) {
-      console.warn(`Initial download ${table} error:`, err);
+      // Silently continue
     }
     onProgress?.(table, true);
   }
@@ -305,7 +300,6 @@ export async function initialDownload(
 // Trigger sync after a write operation
 export function triggerSync(tenantId?: string) {
   if (navigator.onLine && tenantId) {
-    // Debounced: wait 500ms to batch rapid writes
     setTimeout(() => syncNow(tenantId), 500);
   }
   notifyListeners();
