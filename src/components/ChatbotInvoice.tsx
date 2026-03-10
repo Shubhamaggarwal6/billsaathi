@@ -3,38 +3,28 @@ import { useApp } from '@/contexts/AppContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { numberToWords } from '@/lib/subscription';
 import { getStateFromGST } from '@/lib/types';
-import { printGSTInvoice } from '@/lib/invoicePrint';
+import { printDoc, downloadDocPDF, invoiceToDocData, type UnifiedDocData } from '@/lib/invoiceRenderer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Printer, Pencil, Trash2, RotateCcw, Home, FileText, Download, Share2, ArrowLeft, Plus, Package, Car, User, Hash } from 'lucide-react';
-import type { Customer, Product, InvoiceItem, Invoice, Payment } from '@/lib/types';
+import type { Customer, Product, InvoiceItem, Invoice, Payment, CreditNote, DebitNote } from '@/lib/types';
 
-// State machine — clear, non-overlapping states
+// State machine
 type ChatStep =
-  | 'select-customer'
-  | 'confirm-customer'
-  | 'new-customer-name'
-  | 'new-customer-phone'
-  | 'new-customer-gst'
-  | 'new-customer-address'
-  | 'vehicle'
-  | 'add-product'
-  | 'product-selling-price'
-  | 'product-discount'
-  | 'product-quantity'
-  | 'new-product-name'
-  | 'new-product-hsn'
-  | 'new-product-price'
-  | 'new-product-gst'
-  | 'new-product-unit'
+  | 'select-customer' | 'confirm-customer'
+  | 'new-customer-name' | 'new-customer-phone' | 'new-customer-gst' | 'new-customer-address'
+  | 'vehicle' | 'add-product' | 'product-selling-price' | 'product-discount' | 'product-quantity'
+  | 'new-product-name' | 'new-product-hsn' | 'new-product-price' | 'new-product-gst' | 'new-product-unit'
   | 'more-products'
-  | 'payment-ask'
-  | 'payment-mode'
-  | 'payment-partial-amount'
-  | 'payment-partial-mode';
+  | 'payment-ask' | 'payment-mode' | 'payment-partial-amount' | 'payment-partial-mode'
+  // Credit note steps
+  | 'cn-return-type' | 'cn-select-products' | 'cn-product-qty' | 'cn-product-rate'
+  | 'cn-amount' | 'cn-amount-gst' | 'cn-misc-amount' | 'cn-misc-reason' | 'cn-misc-gst'
+  | 'cn-note' | 'cn-confirm'
+  // Post-invoice credit note prompt
+  | 'ask-credit-note';
 
-// These are separate UI panels, NOT chat states
-type PanelMode = 'chat' | 'preview' | 'edit' | 'done';
+type PanelMode = 'chat' | 'preview' | 'edit' | 'done' | 'cn-preview';
 
 interface Message {
   from: 'bot' | 'user';
@@ -66,12 +56,30 @@ export default function ChatbotInvoice() {
   const [editInput, setEditInput] = useState('');
   const [initialized, setInitialized] = useState(false);
   const [docType, setDocType] = useState<'invoice' | 'credit-note' | 'debit-note'>('invoice');
+  
+  // Payment status on done screen
+  const [donePaymentStatus, setDonePaymentStatus] = useState<'paid' | 'partial' | 'pending'>('paid');
+  const [partialAmountInput, setPartialAmountInput] = useState('');
+  const [showPartialInput, setShowPartialInput] = useState(false);
+  
+  // Credit note flow state
+  const [cnReturnType, setCnReturnType] = useState<'product' | 'amount' | 'both' | 'misc' | null>(null);
+  const [cnSelectedProducts, setCnSelectedProducts] = useState<Set<number>>(new Set());
+  const [cnProductQtys, setCnProductQtys] = useState<Record<number, number>>({});
+  const [cnProductRates, setCnProductRates] = useState<Record<number, number>>({});
+  const [cnCurrentProductIndex, setCnCurrentProductIndex] = useState(0);
+  const [cnAmount, setCnAmount] = useState(0);
+  const [cnAmountGst, setCnAmountGst] = useState(0);
+  const [cnMiscAmount, setCnMiscAmount] = useState(0);
+  const [cnMiscReason, setCnMiscReason] = useState('');
+  const [cnMiscGst, setCnMiscGst] = useState(0);
+  const [cnNote, setCnNote] = useState('');
+  const [cnItems, setCnItems] = useState<InvoiceItem[]>([]);
 
   const userId = currentUser?.role === 'employee' ? currentUser.parentUserId! : currentUser?.id!;
   const myCustomers = customers.filter(c => c.userId === userId);
   const myProducts = products.filter(p => p.userId === userId);
 
-  // Initialize first message with document type selection
   useEffect(() => {
     if (!initialized) {
       setMessages([{
@@ -84,13 +92,8 @@ export default function ChatbotInvoice() {
     }
   }, [t, initialized]);
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  useEffect(() => {
-    if (panelMode === 'chat') inputRef.current?.focus();
-  }, [step, panelMode]);
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  useEffect(() => { if (panelMode === 'chat') inputRef.current?.focus(); }, [step, panelMode]);
 
   const addMsg = (from: 'bot' | 'user', text: string, options?: string[], optionKeys?: string[]) => {
     setMessages(prev => [...prev, { from, text, options, optionKeys }]);
@@ -100,15 +103,10 @@ export default function ChatbotInvoice() {
     setInput(value);
     if (step === 'select-customer' && value.trim().length >= 1) {
       const q = value.toLowerCase();
-      setSuggestions(myCustomers.filter(c =>
-        c.name.toLowerCase().includes(q) || c.phone.includes(q) ||
-        (c.gstNumber && c.gstNumber.toLowerCase().includes(q))
-      ).slice(0, 5));
+      setSuggestions(myCustomers.filter(c => c.name.toLowerCase().includes(q) || c.phone.includes(q) || (c.gstNumber && c.gstNumber.toLowerCase().includes(q))).slice(0, 5));
     } else if (step === 'add-product' && value.trim().length >= 1) {
       const q = value.toLowerCase();
-      setSuggestions(myProducts.filter(p =>
-        p.name.toLowerCase().includes(q) || p.hsn.toLowerCase().includes(q)
-      ).slice(0, 5));
+      setSuggestions(myProducts.filter(p => p.name.toLowerCase().includes(q) || p.hsn.toLowerCase().includes(q)).slice(0, 5));
     } else {
       setSuggestions([]);
     }
@@ -120,8 +118,7 @@ export default function ChatbotInvoice() {
     setInput('');
     addMsg('user', cust.name);
     addMsg('bot', `${t('chatCustomerFound')} ${cust.name}, ${cust.phone}${cust.gstNumber ? ', GST: ' + cust.gstNumber : ''}`,
-      [t('btnYesConfirm'), t('btnNoChange')],
-      ['btnYesConfirm', 'btnNoChange']);
+      [t('btnYesConfirm'), t('btnNoChange')], ['btnYesConfirm', 'btnNoChange']);
     setStep('confirm-customer');
   };
 
@@ -130,24 +127,18 @@ export default function ChatbotInvoice() {
     setSuggestions([]);
     setInput('');
     addMsg('user', p.name);
-    addMsg('bot', t('chatStockInfo', { name: p.name, price: String(p.price), unit: p.unit, stock: String(p.stock) }) +
-      '\n' + t('sellingPrice'));
+    addMsg('bot', t('chatStockInfo', { name: p.name, price: String(p.price), unit: p.unit, stock: String(p.stock) }) + '\n' + t('sellingPrice'));
     setStep('product-selling-price');
   };
 
-  const goToPreview = () => {
-    setPanelMode('preview');
-  };
+  const goToPreview = () => { setPanelMode('preview'); };
 
   const handleStartOption = (opt: string, optKey?: string) => {
     addMsg('user', opt);
     setStartChoice(true);
-    
-    // Document type selection
     if (optKey === 'startInvoice') {
       setDocType('invoice');
-      addMsg('bot', t('chatWelcome') + '\n' + t('chatSearchCustomer'), 
-        [t('btnOldCustomer'), t('btnNewCustomer')], ['btnOldCustomer', 'btnNewCustomer']);
+      addMsg('bot', t('chatWelcome') + '\n' + t('chatSearchCustomer'), [t('btnOldCustomer'), t('btnNewCustomer')], ['btnOldCustomer', 'btnNewCustomer']);
       return;
     }
     if (optKey === 'startCreditNote') {
@@ -160,7 +151,6 @@ export default function ChatbotInvoice() {
       addMsg('bot', 'Debit Note ke liye invoice search karein:', [t('btnOldCustomer'), t('btnNewCustomer')], ['btnOldCustomer', 'btnNewCustomer']);
       return;
     }
-    
     if (optKey === 'btnOldCustomer' || opt === t('btnOldCustomer')) {
       addMsg('bot', t('chatSearchCustomer'));
       setStep('select-customer');
@@ -171,7 +161,6 @@ export default function ChatbotInvoice() {
   };
 
   const handleOptionClick = (opt: string, optKey?: string) => {
-    // Handle document type selection as start options
     if (!startChoice || optKey === 'startInvoice' || optKey === 'startCreditNote' || optKey === 'startDebitNote' || optKey === 'btnOldCustomer' || optKey === 'btnNewCustomer') {
       if (!startChoice && !['startInvoice', 'startCreditNote', 'startDebitNote'].includes(optKey || '')) {
         handleStartOption(opt, optKey);
@@ -203,40 +192,33 @@ export default function ChatbotInvoice() {
       }
       return;
     }
+    if (step === 'payment-ask') { handlePaymentAsk(opt, optKey); return; }
+    if (step === 'payment-mode') { handlePaymentMode(opt); return; }
+    if (step === 'payment-partial-mode') { handlePartialPaymentMode(opt); return; }
+    
+    // Credit note return type
+    if (step === 'cn-return-type') {
+      if (optKey === 'cnProduct') { setCnReturnType('product'); startCnProductSelection(); }
+      else if (optKey === 'cnAmount') { setCnReturnType('amount'); addMsg('bot', 'Kitna amount adjust karna hai?'); setStep('cn-amount'); }
+      else if (optKey === 'cnBoth') { setCnReturnType('both'); startCnProductSelection(); }
+      else if (optKey === 'cnMisc') { setCnReturnType('misc'); addMsg('bot', 'Miscellaneous amount kitna hai?'); setStep('cn-misc-amount'); }
+      return;
+    }
+    
+    // Ask credit note after paid
+    if (step === 'ask-credit-note') {
+      if (optKey === 'cnYes') {
+        startCreditNoteFlow();
+      } else {
+        // Done, no credit note
+      }
+      return;
+    }
 
-    if (step === 'payment-ask') {
-      handlePaymentAsk(opt, optKey);
-      return;
-    }
-    if (step === 'payment-mode') {
-      handlePaymentMode(opt);
-      return;
-    }
-    if (step === 'payment-partial-mode') {
-      handlePartialPaymentMode(opt);
-      return;
-    }
-
-    if (optKey === 'btnNewCustomer' || opt === t('btnNewCustomer')) {
-      addMsg('bot', t('chatAskName'));
-      setStep('new-customer-name');
-      return;
-    }
-    if (optKey === 'chatTryAgain' || opt === t('chatTryAgain')) {
-      addMsg('bot', t('chatSearchCustomer'));
-      setStep('select-customer');
-      return;
-    }
-    if (optKey === 'chatAddNewProduct' || opt === t('chatAddNewProduct')) {
-      addMsg('bot', t('chatNewProductName'));
-      setStep('new-product-name');
-      return;
-    }
-    if (optKey === 'chatNoAdd' || opt === t('chatNoAdd')) {
-      addMsg('bot', t('chatAskProduct'));
-      setStep('add-product');
-      return;
-    }
+    if (optKey === 'btnNewCustomer' || opt === t('btnNewCustomer')) { addMsg('bot', t('chatAskName')); setStep('new-customer-name'); return; }
+    if (optKey === 'chatTryAgain' || opt === t('chatTryAgain')) { addMsg('bot', t('chatSearchCustomer')); setStep('select-customer'); return; }
+    if (optKey === 'chatAddNewProduct' || opt === t('chatAddNewProduct')) { addMsg('bot', t('chatNewProductName')); setStep('new-product-name'); return; }
+    if (optKey === 'chatNoAdd' || opt === t('chatNoAdd')) { addMsg('bot', t('chatAskProduct')); setStep('add-product'); return; }
     if (step === 'select-customer') {
       const name = opt.split(' (')[0];
       const cust = myCustomers.find(c => c.name === name);
@@ -251,9 +233,29 @@ export default function ChatbotInvoice() {
     }
   };
 
+  // Credit note helpers
+  const startCreditNoteFlow = () => {
+    addMsg('bot', 'Kya wapas aaya? (sab optional hai)',
+      ['📦 Product Wapas', '💰 Sirf Amount', '📦+💰 Dono', 'Miscellaneous Amount'],
+      ['cnProduct', 'cnAmount', 'cnBoth', 'cnMisc']);
+    setStep('cn-return-type');
+  };
+  
+  const startCnProductSelection = () => {
+    if (!lastCreatedInvoice || lastCreatedInvoice.items.length === 0) {
+      addMsg('bot', 'Invoice mein koi product nahi hai. Amount enter karein:');
+      setStep('cn-amount');
+      return;
+    }
+    const productList = lastCreatedInvoice.items.map((it, i) => `${i + 1}. ${it.productName} (${it.quantity} ${it.unit} @ ₹${it.price})`).join('\n');
+    addMsg('bot', `Products select karein (numbers comma-separated, e.g. 1,3):\n${productList}`);
+    setStep('cn-select-products');
+  };
+
   const handleSend = () => {
     const text = input.trim();
-    const skippableSteps: ChatStep[] = ['vehicle', 'new-customer-gst', 'new-customer-address', 'new-product-hsn', 'product-selling-price', 'product-discount'];
+    const skippableSteps: ChatStep[] = ['vehicle', 'new-customer-gst', 'new-customer-address', 'new-product-hsn', 'product-selling-price', 'product-discount',
+      'cn-product-rate', 'cn-amount-gst', 'cn-misc-reason', 'cn-misc-gst', 'cn-note'];
     if (!text && !skippableSteps.includes(step)) return;
     setInput('');
     setSuggestions([]);
@@ -268,21 +270,9 @@ export default function ChatbotInvoice() {
         else addMsg('bot', t('chatCustomerNotFound'), [t('btnNewCustomer'), t('chatTryAgain')], ['btnNewCustomer', 'chatTryAgain']);
         break;
       }
-      case 'new-customer-name':
-        setNewCust(prev => ({ ...prev, name: text }));
-        addMsg('bot', t('chatAskPhone'));
-        setStep('new-customer-phone');
-        break;
-      case 'new-customer-phone':
-        setNewCust(prev => ({ ...prev, phone: text }));
-        addMsg('bot', t('chatAskGST'));
-        setStep('new-customer-gst');
-        break;
-      case 'new-customer-gst':
-        setNewCust(prev => ({ ...prev, gstNumber: text }));
-        addMsg('bot', t('chatAskAddress'));
-        setStep('new-customer-address');
-        break;
+      case 'new-customer-name': setNewCust(prev => ({ ...prev, name: text })); addMsg('bot', t('chatAskPhone')); setStep('new-customer-phone'); break;
+      case 'new-customer-phone': setNewCust(prev => ({ ...prev, phone: text })); addMsg('bot', t('chatAskGST')); setStep('new-customer-gst'); break;
+      case 'new-customer-gst': setNewCust(prev => ({ ...prev, gstNumber: text })); addMsg('bot', t('chatAskAddress')); setStep('new-customer-address'); break;
       case 'new-customer-address': {
         const custId = crypto.randomUUID();
         const cust: Customer = { id: custId, userId, name: newCust.name, phone: newCust.phone, gstNumber: newCust.gstNumber, address: text };
@@ -293,11 +283,7 @@ export default function ChatbotInvoice() {
         setStep('vehicle');
         break;
       }
-      case 'vehicle':
-        setVehicle(text);
-        addMsg('bot', t('chatAskProduct'));
-        setStep('add-product');
-        break;
+      case 'vehicle': setVehicle(text); addMsg('bot', t('chatAskProduct')); setStep('add-product'); break;
       case 'add-product': {
         const matches = myProducts.filter(p => p.name.toLowerCase().includes(text.toLowerCase()));
         if (matches.length === 1) selectProduct(matches[0]);
@@ -308,11 +294,7 @@ export default function ChatbotInvoice() {
       case 'product-selling-price': {
         const mrp = currentItem.mrp || 0;
         let sellingPrice = mrp;
-        if (text) {
-          const sp = Number(text);
-          if (isNaN(sp) || sp <= 0) { addMsg('bot', t('chatCorrectPrice')); return; }
-          sellingPrice = sp;
-        }
+        if (text) { const sp = Number(text); if (isNaN(sp) || sp <= 0) { addMsg('bot', t('chatCorrectPrice')); return; } sellingPrice = sp; }
         const discountFromMrp = mrp > 0 && sellingPrice < mrp ? Math.round(((mrp - sellingPrice) / mrp) * 100 * 100) / 100 : 0;
         setCurrentItem(prev => ({ ...prev, sellingPrice }));
         let msg = t('chatSellingPrice', { price: String(sellingPrice), unit: currentItem.unit || 'Piece' });
@@ -324,11 +306,7 @@ export default function ChatbotInvoice() {
       }
       case 'product-discount': {
         let discountPct = 0;
-        if (text) {
-          const d = Number(text);
-          if (isNaN(d) || d < 0 || d > 100) { addMsg('bot', t('chatCorrectDiscount')); return; }
-          discountPct = d;
-        }
+        if (text) { const d = Number(text); if (isNaN(d) || d < 0 || d > 100) { addMsg('bot', t('chatCorrectDiscount')); return; } discountPct = d; }
         const sellingPrice = currentItem.sellingPrice || currentItem.mrp || 0;
         const finalPrice = Math.round(sellingPrice * (1 - discountPct / 100) * 100) / 100;
         setCurrentItem(prev => ({ ...prev, discount: discountPct, price: finalPrice }));
@@ -349,21 +327,12 @@ export default function ChatbotInvoice() {
         setItems(prev => [...prev, item]);
         setCurrentItem({});
         addMsg('bot', t('productAdded', { name: item.productName, qty: String(qty) }) + '\n' + t('chatMoreProduct'),
-          [t('btnYesAdd'), t('btnNoMakeInvoice')],
-          ['btnYesAdd', 'btnNoMakeInvoice']);
+          [t('btnYesAdd'), t('btnNoMakeInvoice')], ['btnYesAdd', 'btnNoMakeInvoice']);
         setStep('more-products');
         break;
       }
-      case 'new-product-name':
-        setNewProd(prev => ({ ...prev, name: text }));
-        addMsg('bot', t('chatNewProductHSN'));
-        setStep('new-product-hsn');
-        break;
-      case 'new-product-hsn':
-        setNewProd(prev => ({ ...prev, hsn: text }));
-        addMsg('bot', t('chatNewProductPrice'));
-        setStep('new-product-price');
-        break;
+      case 'new-product-name': setNewProd(prev => ({ ...prev, name: text })); addMsg('bot', t('chatNewProductHSN')); setStep('new-product-hsn'); break;
+      case 'new-product-hsn': setNewProd(prev => ({ ...prev, hsn: text })); addMsg('bot', t('chatNewProductPrice')); setStep('new-product-price'); break;
       case 'new-product-price': {
         const price = Number(text);
         if (isNaN(price) || price <= 0) { addMsg('bot', t('chatCorrectPrice')); return; }
@@ -399,10 +368,198 @@ export default function ChatbotInvoice() {
         setStep('payment-partial-mode');
         break;
       }
+      // Credit note steps
+      case 'cn-select-products': {
+        const indices = text.split(',').map(s => parseInt(s.trim()) - 1).filter(n => !isNaN(n));
+        const inv = lastCreatedInvoice;
+        if (!inv) return;
+        const validIndices = indices.filter(i => i >= 0 && i < inv.items.length);
+        if (validIndices.length === 0) { addMsg('bot', 'Sahi number daalein (1 se ' + inv.items.length + ')'); return; }
+        setCnSelectedProducts(new Set(validIndices));
+        setCnCurrentProductIndex(0);
+        const firstItem = inv.items[validIndices[0]];
+        addMsg('bot', `"${firstItem.productName}" kitni wapas aayi?\nOriginal: ${firstItem.quantity} ${firstItem.unit}\n(Enter = full quantity)`);
+        setStep('cn-product-qty');
+        break;
+      }
+      case 'cn-product-qty': {
+        const inv = lastCreatedInvoice;
+        if (!inv) return;
+        const selectedArr = Array.from(cnSelectedProducts);
+        const idx = selectedArr[cnCurrentProductIndex];
+        const origItem = inv.items[idx];
+        const qty = text ? Number(text) : origItem.quantity;
+        if (isNaN(qty) || qty <= 0 || qty > origItem.quantity) { addMsg('bot', `0 se ${origItem.quantity} ke beech mein daalein`); return; }
+        setCnProductQtys(prev => ({ ...prev, [idx]: qty }));
+        addMsg('bot', `Rate kya hogi?\nOriginal rate: ₹${origItem.price}\n(Enter = original rate use karein)`);
+        setStep('cn-product-rate');
+        break;
+      }
+      case 'cn-product-rate': {
+        const inv = lastCreatedInvoice;
+        if (!inv) return;
+        const selectedArr = Array.from(cnSelectedProducts);
+        const idx = selectedArr[cnCurrentProductIndex];
+        const origItem = inv.items[idx];
+        const rate = text ? Number(text) : origItem.price;
+        if (isNaN(rate) || rate <= 0) { addMsg('bot', 'Sahi rate daalein'); return; }
+        setCnProductRates(prev => ({ ...prev, [idx]: rate }));
+        
+        // Next product or move on
+        if (cnCurrentProductIndex < selectedArr.length - 1) {
+          const nextIdx = selectedArr[cnCurrentProductIndex + 1];
+          const nextItem = inv.items[nextIdx];
+          setCnCurrentProductIndex(prev => prev + 1);
+          addMsg('bot', `"${nextItem.productName}" kitni wapas aayi?\nOriginal: ${nextItem.quantity} ${nextItem.unit}\n(Enter = full quantity)`);
+          setStep('cn-product-qty');
+        } else if (cnReturnType === 'both') {
+          addMsg('bot', 'Kitna extra amount adjust karna hai? (Enter = skip)');
+          setStep('cn-amount');
+        } else {
+          addMsg('bot', 'Koi note likhna hai? (Enter = skip)');
+          setStep('cn-note');
+        }
+        break;
+      }
+      case 'cn-amount': {
+        const amt = text ? Number(text) : 0;
+        if (text && (isNaN(amt) || amt < 0)) { addMsg('bot', 'Sahi amount daalein'); return; }
+        setCnAmount(amt);
+        if (amt > 0) {
+          addMsg('bot', 'GST rate? (Enter = no GST)');
+          setStep('cn-amount-gst');
+        } else {
+          addMsg('bot', 'Koi note likhna hai? (Enter = skip)');
+          setStep('cn-note');
+        }
+        break;
+      }
+      case 'cn-amount-gst': {
+        const gst = text ? Number(text) : 0;
+        setCnAmountGst(gst);
+        addMsg('bot', 'Koi note likhna hai? (Enter = skip)');
+        setStep('cn-note');
+        break;
+      }
+      case 'cn-misc-amount': {
+        const amt = Number(text);
+        if (isNaN(amt) || amt <= 0) { addMsg('bot', 'Sahi amount daalein'); return; }
+        setCnMiscAmount(amt);
+        addMsg('bot', 'Reason? (Enter = skip)');
+        setStep('cn-misc-reason');
+        break;
+      }
+      case 'cn-misc-reason': {
+        setCnMiscReason(text);
+        addMsg('bot', 'GST lagega? (Enter = nahi)\nOptions: 0, 5, 12, 18, 28');
+        setStep('cn-misc-gst');
+        break;
+      }
+      case 'cn-misc-gst': {
+        const gst = text ? Number(text) : 0;
+        setCnMiscGst(gst);
+        addMsg('bot', 'Koi note likhna hai? (Enter = skip)');
+        setStep('cn-note');
+        break;
+      }
+      case 'cn-note': {
+        setCnNote(text);
+        // Build CN items and show preview
+        buildCnItems();
+        setPanelMode('cn-preview');
+        break;
+      }
     }
   };
 
-  // ---- Invoice creation (from preview) ----
+  const buildCnItems = () => {
+    const inv = lastCreatedInvoice;
+    const builtItems: InvoiceItem[] = [];
+    
+    // Product returns
+    if (inv && (cnReturnType === 'product' || cnReturnType === 'both')) {
+      Array.from(cnSelectedProducts).forEach(idx => {
+        const origItem = inv.items[idx];
+        const qty = cnProductQtys[idx] ?? origItem.quantity;
+        const rate = cnProductRates[idx] ?? origItem.price;
+        builtItems.push({
+          productId: origItem.productId, productName: origItem.productName,
+          hsn: origItem.hsn, quantity: qty, mrp: origItem.mrp,
+          sellingPrice: rate, price: rate, discount: 0,
+          gstPercent: origItem.gstPercent, unit: origItem.unit,
+        });
+      });
+    }
+    
+    // Amount adjustment
+    if (cnAmount > 0) {
+      builtItems.push({
+        productId: '', productName: 'Amount Adjustment', hsn: '',
+        quantity: 1, mrp: cnAmount, sellingPrice: cnAmount, price: cnAmount,
+        discount: 0, gstPercent: cnAmountGst, unit: 'Piece',
+      });
+    }
+    
+    // Misc
+    if (cnMiscAmount > 0) {
+      builtItems.push({
+        productId: '', productName: cnMiscReason || 'Miscellaneous', hsn: '',
+        quantity: 1, mrp: cnMiscAmount, sellingPrice: cnMiscAmount, price: cnMiscAmount,
+        discount: 0, gstPercent: cnMiscGst, unit: 'Piece',
+      });
+    }
+    
+    setCnItems(builtItems);
+  };
+
+  const getCnTotals = () => {
+    const subtotal = cnItems.reduce((s, i) => s + i.price * i.quantity, 0);
+    const gst = cnItems.reduce((s, i) => s + (i.price * i.quantity * i.gstPercent / 100), 0);
+    const inv = lastCreatedInvoice;
+    const isInterState = inv?.isInterState || false;
+    return {
+      subtotal, gst, total: subtotal + gst, isInterState,
+      cgst: isInterState ? 0 : gst / 2,
+      sgst: isInterState ? 0 : gst / 2,
+      igst: isInterState ? gst : 0,
+    };
+  };
+
+  const createCreditNote = () => {
+    const inv = lastCreatedInvoice;
+    if (!inv) return;
+    const totals = getCnTotals();
+    const cnNumber = `CN-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`;
+    
+    const cn: CreditNote = {
+      id: crypto.randomUUID(), userId, creditNoteNumber: cnNumber,
+      date: new Date().toISOString().split('T')[0],
+      originalInvoiceId: inv.id, originalInvoiceNumber: inv.invoiceNumber,
+      customerId: inv.customerId, customerName: inv.customerName,
+      reason: cnMiscReason || cnNote || 'Credit Note',
+      items: cnItems, subtotal: totals.subtotal,
+      cgst: totals.cgst, sgst: totals.sgst, igst: totals.igst,
+      total: totals.total, isInterState: totals.isInterState,
+      status: 'active',
+      createdBy: { id: currentUser!.id, name: currentUser!.firmName || currentUser!.username, role: currentUser!.role, timestamp: new Date().toISOString() },
+    };
+    
+    // Update inventory — add back returned products
+    if (cnReturnType === 'product' || cnReturnType === 'both') {
+      setProducts(prev => prev.map(p => {
+        const returnedItem = cnItems.find(ci => ci.productId === p.id && ci.productId !== '');
+        if (returnedItem) return { ...p, stock: p.stock + returnedItem.quantity };
+        return p;
+      }));
+    }
+    
+    // TODO: Save to context/IndexedDB when credit notes are added to AppContext
+    addMsg('bot', `✅ Credit Note Ban Gayi! ${cnNumber}\nAmount: ₹${totals.total.toLocaleString('en-IN')}`);
+    setPanelMode('done');
+    setLastCreatedInvoice(inv); // Keep for done screen reference
+  };
+
+  // ---- Invoice creation ----
   const createInvoice = () => {
     if (items.length === 0) return;
     const totalAmount = items.reduce((s, i) => s + i.price * i.quantity, 0);
@@ -436,11 +593,10 @@ export default function ChatbotInvoice() {
     setInvoices(prev => [...prev, invoice]);
     setProducts(prev => prev.map(p => { const item = items.find(i => i.productId === p.id); return item ? { ...p, stock: Math.max(0, p.stock - item.quantity) } : p; }));
     setLastCreatedInvoice(invoice);
-    setPanelMode('chat');
-    addMsg('bot', t('chatInvoiceCreated', { num: invNum, total: grandTotal.toLocaleString('en-IN') }),
-      [t('btnFullPaid'), t('btnPartialPaid'), t('btnNoPending')],
-      ['btnFullPaid', 'btnPartialPaid', 'btnNoPending']);
-    setStep('payment-ask');
+    setDonePaymentStatus('paid');
+    setShowPartialInput(false);
+    setPartialAmountInput('');
+    setPanelMode('done');
   };
 
   const handlePaymentAsk = (opt: string, optKey?: string) => {
@@ -457,11 +613,7 @@ export default function ChatbotInvoice() {
 
   const handlePaymentMode = (opt: string) => {
     const modeMap: Record<string, Payment['mode']> = {};
-    modeMap[t('btnCash')] = 'Cash';
-    modeMap[t('btnUPI')] = 'UPI';
-    modeMap[t('btnBankTransfer')] = 'Bank Transfer';
-    modeMap[t('btnRTGS')] = 'RTGS';
-    modeMap[t('btnCheque')] = 'Cheque';
+    modeMap[t('btnCash')] = 'Cash'; modeMap[t('btnUPI')] = 'UPI'; modeMap[t('btnBankTransfer')] = 'Bank Transfer'; modeMap[t('btnRTGS')] = 'RTGS'; modeMap[t('btnCheque')] = 'Cheque';
     const mode = modeMap[opt] || 'Cash';
     const inv = lastCreatedInvoice;
     if (inv) {
@@ -475,11 +627,7 @@ export default function ChatbotInvoice() {
 
   const handlePartialPaymentMode = (opt: string) => {
     const modeMap: Record<string, Payment['mode']> = {};
-    modeMap[t('btnCash')] = 'Cash';
-    modeMap[t('btnUPI')] = 'UPI';
-    modeMap[t('btnBankTransfer')] = 'Bank Transfer';
-    modeMap[t('btnRTGS')] = 'RTGS';
-    modeMap[t('btnCheque')] = 'Cheque';
+    modeMap[t('btnCash')] = 'Cash'; modeMap[t('btnUPI')] = 'UPI'; modeMap[t('btnBankTransfer')] = 'Bank Transfer'; modeMap[t('btnRTGS')] = 'RTGS'; modeMap[t('btnCheque')] = 'Cheque';
     const mode = modeMap[opt] || 'Cash';
     const partialAmt = (currentItem as any)?.price || 0;
     const inv = lastCreatedInvoice;
@@ -495,34 +643,84 @@ export default function ChatbotInvoice() {
     setPanelMode('done');
   };
 
+  // Handle payment status change on done screen
+  const handleDonePaymentStatus = (status: 'paid' | 'partial' | 'pending') => {
+    const inv = lastCreatedInvoice;
+    if (!inv) return;
+    setDonePaymentStatus(status);
+    
+    if (status === 'paid') {
+      setShowPartialInput(false);
+      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'paid', paidAmount: inv.grandTotal } : i));
+      setLastCreatedInvoice({ ...inv, status: 'paid', paidAmount: inv.grandTotal });
+      // Record full payment
+      const payment: Payment = { id: crypto.randomUUID(), userId, customerId: inv.customerId, invoiceId: inv.id, amount: inv.grandTotal, date: new Date().toISOString().split('T')[0], mode: 'Cash', note: `Full payment for ${inv.invoiceNumber}`, timestamp: new Date().toISOString() };
+      setPayments(prev => [...prev, payment]);
+    } else if (status === 'partial') {
+      setShowPartialInput(true);
+    } else {
+      setShowPartialInput(false);
+      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'pending', paidAmount: 0 } : i));
+      setLastCreatedInvoice({ ...inv, status: 'pending', paidAmount: 0 });
+      // Auto create debit note silently
+      createAutoDebitNote(inv, inv.grandTotal, 'Payment pending');
+    }
+  };
+
+  const handlePartialPaymentSave = () => {
+    const inv = lastCreatedInvoice;
+    if (!inv) return;
+    const amt = Number(partialAmountInput);
+    if (isNaN(amt) || amt <= 0 || amt >= inv.grandTotal) return;
+    
+    const payment: Payment = { id: crypto.randomUUID(), userId, customerId: inv.customerId, invoiceId: inv.id, amount: amt, date: new Date().toISOString().split('T')[0], mode: 'Cash', note: `Partial payment for ${inv.invoiceNumber}`, timestamp: new Date().toISOString() };
+    setPayments(prev => [...prev, payment]);
+    setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'partial', paidAmount: amt } : i));
+    setLastCreatedInvoice({ ...inv, status: 'partial', paidAmount: amt });
+    setShowPartialInput(false);
+    
+    // Auto create debit note for balance
+    const balance = inv.grandTotal - amt;
+    createAutoDebitNote(inv, balance, `Partial payment — balance due`);
+  };
+
+  const createAutoDebitNote = (inv: Invoice, amount: number, reason: string) => {
+    const dnNumber = `DN-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`;
+    // Debit note created silently — will be visible in Debit Notes section
+    // TODO: Save to context/IndexedDB when debit notes added to AppContext
+    console.log('Auto Debit Note created:', dnNumber, amount, reason);
+  };
+
   const resetChat = () => {
     setMessages([{
-      from: 'bot',
-      text: '🙏 ' + t('chatWelcome'),
+      from: 'bot', text: '🙏 ' + t('chatWelcome'),
       options: ['🧾 Invoice Banao', '📋 Credit Note Banao', '📋 Debit Note Banao'],
       optionKeys: ['startInvoice', 'startCreditNote', 'startDebitNote'],
     }]);
-    setStep('select-customer');
-    setPanelMode('chat');
-    setStartChoice(false);
-    setSelectedCustomer(null);
-    setNewCust({ name: '', phone: '', gstNumber: '', address: '' });
-    setVehicle('');
-    setEwayBill('');
-    setItems([]);
-    setCurrentItem({});
-    setSuggestions([]);
-    setEditField(null);
-    setEditInput('');
-    setLastCreatedInvoice(null);
-    setDocType('invoice');
+    setStep('select-customer'); setPanelMode('chat'); setStartChoice(false);
+    setSelectedCustomer(null); setNewCust({ name: '', phone: '', gstNumber: '', address: '' });
+    setVehicle(''); setEwayBill(''); setItems([]); setCurrentItem({});
+    setSuggestions([]); setEditField(null); setEditInput('');
+    setLastCreatedInvoice(null); setDocType('invoice');
+    setDonePaymentStatus('paid'); setShowPartialInput(false); setPartialAmountInput('');
+    setCnReturnType(null); setCnSelectedProducts(new Set()); setCnProductQtys({});
+    setCnProductRates({}); setCnCurrentProductIndex(0); setCnAmount(0);
+    setCnAmountGst(0); setCnMiscAmount(0); setCnMiscReason(''); setCnMiscGst(0);
+    setCnNote(''); setCnItems([]);
   };
 
   const printInvoice = () => {
     const inv = lastCreatedInvoice || invoices[invoices.length - 1];
     if (!inv) return;
     const firm = currentUser?.role === 'employee' ? users.find(u => u.id === currentUser.parentUserId) : currentUser;
-    printGSTInvoice(inv, firm);
+    printDoc(invoiceToDocData(inv), { type: 'invoice', firm });
+  };
+
+  const downloadPDF = async () => {
+    const inv = lastCreatedInvoice || invoices[invoices.length - 1];
+    if (!inv) return;
+    const firm = currentUser?.role === 'employee' ? users.find(u => u.id === currentUser.parentUserId) : currentUser;
+    await downloadDocPDF(invoiceToDocData(inv), { type: 'invoice', firm });
   };
 
   const getPlaceholder = (): string => {
@@ -543,205 +741,188 @@ export default function ChatbotInvoice() {
       case 'new-product-gst': return t('phGSTRate');
       case 'new-product-unit': return t('phUnit');
       case 'payment-partial-amount': return t('phAmount');
+      case 'cn-select-products': return 'e.g. 1,2,3';
+      case 'cn-product-qty': return 'Quantity (Enter = full)';
+      case 'cn-product-rate': return 'Rate (Enter = original)';
+      case 'cn-amount': return 'Amount ₹';
+      case 'cn-amount-gst': return 'GST % (Enter = 0)';
+      case 'cn-misc-amount': return 'Amount ₹';
+      case 'cn-misc-reason': return 'Reason (Enter = skip)';
+      case 'cn-misc-gst': return 'GST % (Enter = 0)';
+      case 'cn-note': return 'Note (Enter = skip)';
       default: return t('phType');
     }
   };
 
-  const noInputSteps: ChatStep[] = ['confirm-customer', 'more-products', 'payment-ask', 'payment-mode', 'payment-partial-mode'];
+  const noInputSteps: ChatStep[] = ['confirm-customer', 'more-products', 'payment-ask', 'payment-mode', 'payment-partial-mode', 'cn-return-type', 'ask-credit-note'];
   const showInput = panelMode === 'chat' && startChoice && !noInputSteps.includes(step);
 
-  // ---- Compute invoice totals for preview ----
   const totalAmount = items.reduce((s, i) => s + i.price * i.quantity, 0);
   const totalGst = items.reduce((s, i) => s + (i.price * i.quantity * i.gstPercent) / 100, 0);
   const grandTotal = Math.round(totalAmount + totalGst);
 
-  // ===== EDIT MODE HANDLERS =====
+  // Edit handlers
   const handleEditAction = (action: string) => {
-    setEditField(action);
-    setEditInput('');
+    setEditField(action); setEditInput('');
     if (action === 'vehicle') setEditInput(vehicle);
     else if (action === 'eway') setEditInput(ewayBill);
   };
-
   const applyEdit = () => {
     if (editField === 'vehicle') setVehicle(editInput);
     else if (editField === 'eway') setEwayBill(editInput);
-    setEditField(null);
-    setEditInput('');
+    setEditField(null); setEditInput('');
   };
+  const removeProduct = (index: number) => { setItems(prev => prev.filter((_, i) => i !== index)); };
 
-  const removeProduct = (index: number) => {
-    setItems(prev => prev.filter((_, i) => i !== index));
-  };
-
-  // ===== RENDER =====
   return (
     <div className="animate-fade-in h-full flex flex-col">
       <h2 className="text-xl font-bold text-foreground mb-4">{t('chatbotTitle')}</h2>
 
       <div className="glass-card flex-1 flex flex-col overflow-hidden">
-        {/* ====== PANEL: PREVIEW ====== */}
+        {/* PREVIEW PANEL */}
         {panelMode === 'preview' && (
           <div className="flex-1 flex flex-col overflow-hidden">
             <div className="overflow-y-auto p-3 space-y-3 flex-1" style={{ maxHeight: '60vh', WebkitOverflowScrolling: 'touch' as any }}>
-            {/* Invoice-style preview */}
-            <div className="border border-primary/30 rounded-lg overflow-hidden bg-card text-foreground text-xs">
-              {/* Header */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-primary/20">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm">₹</div>
-                  <div>
-                    <p className="font-bold text-sm text-primary">BillSaathi</p>
-                    <p className="text-[8px] text-muted-foreground uppercase tracking-wider">Billing Made Easier</p>
+              <div className="border border-primary/30 rounded-lg overflow-hidden bg-card text-foreground text-xs">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-primary/20">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm">₹</div>
+                    <div>
+                      <p className="font-bold text-sm text-primary">BillSaathi</p>
+                      <p className="text-[8px] text-muted-foreground uppercase tracking-wider">Billing Made Easier</p>
+                    </div>
                   </div>
-                </div>
-                <div className="text-center">
                   <p className="text-base font-bold text-primary">TAX INVOICE</p>
-                </div>
-                <div className="text-right">
                   <p className="text-[9px] text-muted-foreground">Preview</p>
                 </div>
-              </div>
-
-              {/* Firm + Meta */}
-              <div className="flex justify-between px-4 py-2 border-b border-muted/50 text-[10px]">
-                <div>
-                  <p className="font-bold text-xs">{currentUser?.firmName || 'BillSaathi'}</p>
-                  {currentUser?.firmSettings?.address && <p>{currentUser.firmSettings.address}{currentUser.firmSettings.city ? ', ' + currentUser.firmSettings.city : ''}</p>}
-                  {currentUser?.gstNumber && <p>GSTIN: {currentUser.gstNumber}</p>}
-                  {currentUser?.phone && <p>Phone: {currentUser.phone}</p>}
-                </div>
-                <div className="text-right space-y-0.5">
-                  <div className="bg-primary text-primary-foreground px-2 py-0.5 rounded text-[9px] inline-block">
-                    Amount: <strong>₹{grandTotal.toLocaleString('en-IN')}</strong>
+                <div className="flex justify-between px-4 py-2 border-b border-muted/50 text-[10px]">
+                  <div>
+                    <p className="font-bold text-xs">{currentUser?.firmName || 'BillSaathi'}</p>
+                    {currentUser?.gstNumber && <p>GSTIN: {currentUser.gstNumber}</p>}
                   </div>
-                  <p>Date: <strong>{new Date().toLocaleDateString('en-IN')}</strong></p>
-                  {vehicle && <p>Vehicle: <strong>{vehicle}</strong></p>}
-                  {ewayBill && <p>E-Way: <strong>{ewayBill}</strong></p>}
+                  <div className="text-right">
+                    <div className="bg-primary text-primary-foreground px-2 py-0.5 rounded text-[9px] inline-block">
+                      Amount: <strong>₹{grandTotal.toLocaleString('en-IN')}</strong>
+                    </div>
+                    <p>Date: <strong>{new Date().toLocaleDateString('en-IN')}</strong></p>
+                    {vehicle && <p>Vehicle: <strong>{vehicle}</strong></p>}
+                  </div>
                 </div>
-              </div>
-
-              {/* Client */}
-              <div className="grid grid-cols-2 border-b border-muted/50">
-                <div className="px-4 py-2 border-r border-muted/50">
-                  <p className="text-[8px] text-primary font-bold uppercase tracking-wide mb-1">Client Details</p>
-                  <p className="font-bold text-xs">{selectedCustomer?.name || 'N/A'}</p>
-                  {selectedCustomer?.phone && <p className="text-[10px]">{selectedCustomer.phone}</p>}
-                  {selectedCustomer?.gstNumber && <p className="text-[10px]">GSTIN: {selectedCustomer.gstNumber}</p>}
-                  {selectedCustomer?.address && <p className="text-[10px]">{selectedCustomer.address}</p>}
+                <div className="grid grid-cols-2 border-b border-muted/50">
+                  <div className="px-4 py-2 border-r border-muted/50">
+                    <p className="text-[8px] text-primary font-bold uppercase tracking-wide mb-1">Client Details</p>
+                    <p className="font-bold text-xs">{selectedCustomer?.name || 'N/A'}</p>
+                    {selectedCustomer?.gstNumber && <p className="text-[10px]">GSTIN: {selectedCustomer.gstNumber}</p>}
+                  </div>
+                  <div className="px-4 py-2">
+                    <p className="text-[8px] text-primary font-bold uppercase tracking-wide mb-1">Ship To</p>
+                    <p className="font-bold text-xs">{selectedCustomer?.name || 'N/A'}</p>
+                  </div>
                 </div>
-                <div className="px-4 py-2">
-                  <p className="text-[8px] text-primary font-bold uppercase tracking-wide mb-1">Ship To</p>
-                  <p className="font-bold text-xs">{selectedCustomer?.name || 'N/A'}</p>
-                  {selectedCustomer?.address && <p className="text-[10px]">{selectedCustomer.address}</p>}
-                </div>
-              </div>
-
-              {/* Items Table */}
-              <table className="w-full text-[10px]">
-                <thead>
-                  <tr className="bg-primary text-primary-foreground">
-                    <th className="px-2 py-1.5 text-left">S.No</th>
-                    <th className="px-2 py-1.5 text-left">Item</th>
-                    <th className="px-2 py-1.5 text-center">HSN</th>
-                    <th className="px-2 py-1.5 text-center">Qty</th>
-                    <th className="px-2 py-1.5 text-right">Rate (₹)</th>
-                    <th className="px-2 py-1.5 text-right">Taxable (₹)</th>
-                    <th className="px-2 py-1.5 text-right">GST</th>
-                    <th className="px-2 py-1.5 text-right">Amount (₹)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((it, i) => {
-                    const taxable = it.price * it.quantity;
-                    const gstAmt = taxable * it.gstPercent / 100;
-                    return (
-                      <tr key={i} className="border-b border-muted/30">
-                        <td className="px-2 py-1.5">{i + 1}</td>
-                        <td className="px-2 py-1.5 font-medium">{it.productName}</td>
-                        <td className="px-2 py-1.5 text-center">{it.hsn}</td>
-                        <td className="px-2 py-1.5 text-center">{it.quantity} {it.unit}</td>
-                        <td className="px-2 py-1.5 text-right">₹{it.price.toLocaleString('en-IN')}</td>
-                        <td className="px-2 py-1.5 text-right">₹{taxable.toLocaleString('en-IN')}</td>
-                        <td className="px-2 py-1.5 text-right">{it.gstPercent}%</td>
-                        <td className="px-2 py-1.5 text-right font-bold">₹{(taxable + gstAmt).toLocaleString('en-IN')}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t-2 border-primary/30 bg-muted/20">
-                    <td colSpan={5} className="px-2 py-1.5 text-right font-bold">Total</td>
+                <table className="w-full text-[10px]">
+                  <thead><tr className="bg-primary text-primary-foreground">
+                    <th className="px-2 py-1.5 text-left">S.No</th><th className="px-2 py-1.5 text-left">Item</th>
+                    <th className="px-2 py-1.5 text-center">Qty</th><th className="px-2 py-1.5 text-right">Rate</th>
+                    <th className="px-2 py-1.5 text-right">GST</th><th className="px-2 py-1.5 text-right">Amount</th>
+                  </tr></thead>
+                  <tbody>
+                    {items.map((it, i) => {
+                      const taxable = it.price * it.quantity;
+                      const gstAmt = taxable * it.gstPercent / 100;
+                      return (
+                        <tr key={i} className="border-b border-muted/30">
+                          <td className="px-2 py-1.5">{i + 1}</td>
+                          <td className="px-2 py-1.5 font-medium">{it.productName}</td>
+                          <td className="px-2 py-1.5 text-center">{it.quantity} {it.unit}</td>
+                          <td className="px-2 py-1.5 text-right">₹{it.price.toLocaleString('en-IN')}</td>
+                          <td className="px-2 py-1.5 text-right">{it.gstPercent}%</td>
+                          <td className="px-2 py-1.5 text-right font-bold">₹{(taxable + gstAmt).toLocaleString('en-IN')}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot><tr className="border-t-2 border-primary/30 bg-muted/20">
+                    <td colSpan={3} className="px-2 py-1.5 text-right font-bold">Total</td>
                     <td className="px-2 py-1.5 text-right font-bold">₹{totalAmount.toLocaleString('en-IN')}</td>
                     <td className="px-2 py-1.5 text-right font-bold">₹{totalGst.toLocaleString('en-IN')}</td>
                     <td className="px-2 py-1.5 text-right font-bold text-primary">₹{grandTotal.toLocaleString('en-IN')}</td>
-                  </tr>
-                </tfoot>
-              </table>
-
-              {/* Totals Summary */}
-              <div className="flex justify-between px-4 py-2 border-t border-muted/50 text-[10px]">
-                <div>
-                  {currentUser?.firmSettings?.bankName && (
-                    <>
-                      <p className="font-bold text-[9px] text-primary mb-0.5">Bank Details</p>
-                      <p>Bank: {currentUser.firmSettings.bankName}</p>
-                      <p>A/C: {currentUser.firmSettings.accountNumber}</p>
-                      <p>IFSC: {currentUser.firmSettings.ifscCode}</p>
-                    </>
-                  )}
+                  </tr></tfoot>
+                </table>
+                <div className="text-center text-[8px] text-muted-foreground py-1 border-t border-muted/50">
+                  Generated by <strong>BillSaathi</strong>
                 </div>
-                <div className="text-right space-y-0.5">
-                  <p>Taxable Value: <strong>₹{totalAmount.toLocaleString('en-IN')}</strong></p>
-                  <p>Tax Amount: <strong>₹{totalGst.toLocaleString('en-IN')}</strong></p>
-                  <p className="text-sm font-bold text-primary border-t border-primary/20 pt-1">
-                    Grand Total: ₹{grandTotal.toLocaleString('en-IN')}
-                  </p>
-                  <p className="italic text-[9px] text-muted-foreground">₹ {numberToWords(grandTotal)} Only</p>
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div className="px-4 py-2 border-t border-muted/50 flex justify-between items-end text-[9px]">
-                <div className="text-muted-foreground">
-                  <p className="font-bold text-foreground mb-0.5">Terms & Conditions</p>
-                  <p>1. Goods once sold will not be taken back.</p>
-                  <p>2. E&OE</p>
-                </div>
-                <div className="text-right">
-                  <p className="italic text-muted-foreground">Signature</p>
-                  <p className="font-bold text-foreground text-[10px] mt-3">For, {currentUser?.firmName || 'BillSaathi'}</p>
-                </div>
-              </div>
-
-              <div className="text-center text-[8px] text-muted-foreground py-1 border-t border-muted/50">
-                Generated by <strong>BillSaathi</strong>
               </div>
             </div>
-
-            </div>
-            {/* Fixed buttons outside scroll area */}
             <div className="shrink-0 border-t p-3 space-y-2 bg-card">
               <div className="flex gap-2">
-                <Button onClick={createInvoice} className="flex-1 min-h-[48px]" disabled={items.length === 0}>
-                  ✅ {t('btnCreateInvoice')}
-                </Button>
-                <Button variant="outline" onClick={() => setPanelMode('edit')} className="min-h-[48px]">
-                  ✏️ {t('btnEditInvoice')}
-                </Button>
+                <Button onClick={createInvoice} className="flex-1 min-h-[48px]" disabled={items.length === 0}>✅ {t('btnCreateInvoice')}</Button>
+                <Button variant="outline" onClick={() => setPanelMode('edit')} className="min-h-[48px]">✏️ {t('btnEditInvoice')}</Button>
               </div>
-              <Button variant="ghost" className="w-full text-destructive min-h-[44px]" onClick={resetChat}>
-                {t('btnCancelAll')}
-              </Button>
+              <Button variant="ghost" className="w-full text-destructive min-h-[44px]" onClick={resetChat}>{t('btnCancelAll')}</Button>
             </div>
           </div>
         )}
 
-        {/* ====== PANEL: EDIT ====== */}
+        {/* CN PREVIEW PANEL */}
+        {panelMode === 'cn-preview' && (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="overflow-y-auto p-3 space-y-3 flex-1" style={{ maxHeight: '60vh', WebkitOverflowScrolling: 'touch' as any }}>
+              <div className="border border-emerald-500/30 rounded-lg overflow-hidden bg-card text-foreground text-xs">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-emerald-500/20 bg-emerald-50 dark:bg-emerald-950/20">
+                  <p className="text-base font-bold text-emerald-700 dark:text-emerald-400">CREDIT NOTE</p>
+                  <p className="text-[9px] text-muted-foreground">Preview</p>
+                </div>
+                <div className="px-4 py-2 text-[10px] border-b border-muted/50 bg-muted/20">
+                  <p>Against Invoice: <strong>{lastCreatedInvoice?.invoiceNumber}</strong></p>
+                  <p>Customer: <strong>{lastCreatedInvoice?.customerName}</strong></p>
+                </div>
+                {cnItems.length > 0 && (
+                  <table className="w-full text-[10px]">
+                    <thead><tr className="bg-emerald-600 text-white">
+                      <th className="px-2 py-1.5 text-left">#</th><th className="px-2 py-1.5 text-left">Item</th>
+                      <th className="px-2 py-1.5 text-center">Qty</th><th className="px-2 py-1.5 text-right">Rate</th>
+                      <th className="px-2 py-1.5 text-right">GST%</th><th className="px-2 py-1.5 text-right">Amount</th>
+                    </tr></thead>
+                    <tbody>
+                      {cnItems.map((it, i) => {
+                        const taxable = it.price * it.quantity;
+                        const gstAmt = taxable * it.gstPercent / 100;
+                        return (
+                          <tr key={i} className="border-b border-muted/30">
+                            <td className="px-2 py-1.5">{i + 1}</td>
+                            <td className="px-2 py-1.5 font-medium">{it.productName}</td>
+                            <td className="px-2 py-1.5 text-center">{it.quantity} {it.unit}</td>
+                            <td className="px-2 py-1.5 text-right">₹{it.price.toLocaleString('en-IN')}</td>
+                            <td className="px-2 py-1.5 text-right">{it.gstPercent}%</td>
+                            <td className="px-2 py-1.5 text-right font-bold">₹{(taxable + gstAmt).toLocaleString('en-IN')}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+                <div className="px-4 py-2 text-right text-[10px] border-t border-muted/50">
+                  {(() => { const t = getCnTotals(); return (<>
+                    <p>Subtotal: <strong>₹{t.subtotal.toLocaleString('en-IN')}</strong></p>
+                    {t.isInterState ? <p>IGST: ₹{t.igst.toLocaleString('en-IN')}</p> : <><p>CGST: ₹{t.cgst.toLocaleString('en-IN')}</p><p>SGST: ₹{t.sgst.toLocaleString('en-IN')}</p></>}
+                    <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400 mt-1">Total Credit: ₹{t.total.toLocaleString('en-IN')}</p>
+                  </>); })()}
+                </div>
+              </div>
+            </div>
+            <div className="shrink-0 border-t p-3 space-y-2 bg-card">
+              <div className="flex gap-2">
+                <Button onClick={createCreditNote} className="flex-1 min-h-[48px] bg-emerald-600 hover:bg-emerald-700">✅ Credit Note Banao</Button>
+                <Button variant="outline" onClick={() => { setPanelMode('chat'); }} className="min-h-[48px]">✏️ Kuch Badlein</Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* EDIT PANEL */}
         {panelMode === 'edit' && (
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             <h3 className="text-lg font-bold text-foreground">✏️ {t('chatWhatToEdit')}</h3>
-
             {!editField ? (
               <div className="space-y-2">
                 <button onClick={() => handleEditAction('customer')} className="w-full flex items-center gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors text-left min-h-[48px]">
@@ -778,92 +959,65 @@ export default function ChatbotInvoice() {
                     </button>
                   ))}
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => setEditField(null)} className="min-h-[44px]">
-                  <ArrowLeft className="w-4 h-4 mr-1" /> {t('btnBack')}
-                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setEditField(null)} className="min-h-[44px]"><ArrowLeft className="w-4 h-4 mr-1" /> {t('btnBack')}</Button>
               </div>
             ) : editField === 'vehicle' || editField === 'eway' ? (
               <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">{editField === 'vehicle' ? t('vehicle') : t('ewayBill')}:</p>
-                <Input value={editInput} onChange={e => setEditInput(e.target.value)}
-                  placeholder={editField === 'vehicle' ? 'DL01AB1234' : 'E-Way Bill No.'} />
+                <Input value={editInput} onChange={e => setEditInput(e.target.value)} placeholder={editField === 'vehicle' ? 'DL01AB1234' : 'E-Way Bill No.'} />
                 <div className="flex gap-2">
                   <Button onClick={applyEdit} className="flex-1 min-h-[44px]">{t('btnSave')}</Button>
-                  <Button variant="ghost" onClick={() => setEditField(null)} className="min-h-[44px]">
-                    <ArrowLeft className="w-4 h-4 mr-1" /> {t('btnBack')}
-                  </Button>
+                  <Button variant="ghost" onClick={() => setEditField(null)} className="min-h-[44px]"><ArrowLeft className="w-4 h-4 mr-1" /> {t('btnBack')}</Button>
                 </div>
               </div>
             ) : editField === 'add-product' ? (
               <div className="space-y-2">
-                <Button onClick={() => { setPanelMode('chat'); addMsg('bot', t('chatAskProduct')); setStep('add-product'); setEditField(null); }} className="w-full min-h-[44px]">
-                  {t('btnProductAddChat')}
-                </Button>
-                <Button variant="ghost" onClick={() => setEditField(null)} className="w-full min-h-[44px]">
-                  <ArrowLeft className="w-4 h-4 mr-1" /> {t('btnBack')}
-                </Button>
+                <Button onClick={() => { setPanelMode('chat'); addMsg('bot', t('chatAskProduct')); setStep('add-product'); setEditField(null); }} className="w-full min-h-[44px]">{t('btnProductAddChat')}</Button>
+                <Button variant="ghost" onClick={() => setEditField(null)} className="w-full min-h-[44px]"><ArrowLeft className="w-4 h-4 mr-1" /> {t('btnBack')}</Button>
               </div>
             ) : editField === 'remove-product' ? (
               <div className="space-y-2">
-                {items.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">{t('noData')}</p>
-                ) : items.map((it, i) => (
+                {items.length === 0 ? <p className="text-sm text-muted-foreground">{t('noData')}</p> : items.map((it, i) => (
                   <div key={i} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
                     <span className="text-sm text-foreground">{it.productName} × {it.quantity}</span>
-                    <Button size="sm" variant="destructive" onClick={() => removeProduct(i)} className="min-h-[36px]">
-                      <Trash2 className="w-3 h-3 mr-1" /> {t('delete')}
-                    </Button>
+                    <Button size="sm" variant="destructive" onClick={() => removeProduct(i)} className="min-h-[36px]"><Trash2 className="w-3 h-3 mr-1" /> {t('delete')}</Button>
                   </div>
                 ))}
-                <Button variant="ghost" onClick={() => setEditField(null)} className="w-full min-h-[44px]">
-                  <ArrowLeft className="w-4 h-4 mr-1" /> {t('btnBack')}
-                </Button>
+                <Button variant="ghost" onClick={() => setEditField(null)} className="w-full min-h-[44px]"><ArrowLeft className="w-4 h-4 mr-1" /> {t('btnBack')}</Button>
               </div>
             ) : null}
-
-            {!editField && (
-              <Button variant="outline" onClick={() => setPanelMode('preview')} className="w-full min-h-[48px]">
-                {t('btnBackToReview')}
-              </Button>
-            )}
+            {!editField && <Button variant="outline" onClick={() => setPanelMode('preview')} className="w-full min-h-[48px]">{t('btnBackToReview')}</Button>}
           </div>
         )}
 
-        {/* ====== PANEL: DONE ====== */}
+        {/* DONE PANEL */}
         {panelMode === 'done' && lastCreatedInvoice && (
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             <div className="text-center space-y-2">
               <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto">
                 <FileText className="w-8 h-8 text-emerald-600" />
               </div>
-              <h3 className="text-lg font-bold text-foreground">{t('invoiceDone')}</h3>
-              <p className="text-sm text-muted-foreground">{t('invoiceNo')}: {lastCreatedInvoice.invoiceNumber}</p>
-              <p className="text-sm text-muted-foreground">{t('customer')}: {lastCreatedInvoice.customerName}</p>
+              <h3 className="text-lg font-bold text-foreground">✅ Invoice Done!</h3>
+              <p className="text-sm text-muted-foreground">Invoice No: {lastCreatedInvoice.invoiceNumber}</p>
+              <p className="text-sm text-muted-foreground">Customer: {lastCreatedInvoice.customerName}</p>
               <p className="text-xl font-bold text-foreground">₹{lastCreatedInvoice.grandTotal.toLocaleString('en-IN')}</p>
               <p className="text-xs text-muted-foreground">
-                {t('status')}: {lastCreatedInvoice.status === 'paid' ? '🟢 ' + t('paid') : lastCreatedInvoice.status === 'partial' ? '🟡 ' + t('partial') : '🔴 ' + t('pending')}
+                Status: {lastCreatedInvoice.status === 'paid' ? '🟢 Paid' : lastCreatedInvoice.status === 'partial' ? '🟡 Partial' : '🔴 Pending'}
               </p>
             </div>
 
+            {/* Action buttons */}
             <div className="grid grid-cols-3 gap-2">
               <Button variant="outline" onClick={printInvoice} className="flex flex-col items-center gap-1 min-h-[64px] py-3">
-                <Printer className="w-5 h-5" />
-                <span className="text-[10px]">{t('print')}</span>
+                <Printer className="w-5 h-5" /><span className="text-[10px]">🖨️ Print</span>
               </Button>
-              <Button variant="outline" onClick={async () => {
-                const { downloadInvoicePDF } = await import('@/lib/exportUtils');
-                const firm = currentUser?.role === 'employee' ? users.find(u => u.id === currentUser.parentUserId) : currentUser;
-                downloadInvoicePDF(lastCreatedInvoice, firm);
-              }} className="flex flex-col items-center gap-1 min-h-[64px] py-3">
-                <Download className="w-5 h-5" />
-                <span className="text-[10px]">{t('pdf')}</span>
+              <Button variant="outline" onClick={downloadPDF} className="flex flex-col items-center gap-1 min-h-[64px] py-3">
+                <Download className="w-5 h-5" /><span className="text-[10px]">📄 PDF</span>
               </Button>
               <Button variant="outline" onClick={async () => {
                 const { downloadInvoiceExcel } = await import('@/lib/exportUtils');
                 downloadInvoiceExcel(lastCreatedInvoice);
               }} className="flex flex-col items-center gap-1 min-h-[64px] py-3">
-                <FileText className="w-5 h-5" />
-                <span className="text-[10px]">{t('excel')}</span>
+                <FileText className="w-5 h-5" /><span className="text-[10px]">📊 Excel</span>
               </Button>
             </div>
 
@@ -872,19 +1026,62 @@ export default function ChatbotInvoice() {
               const text = `Invoice: ${inv.invoiceNumber}%0ACustomer: ${inv.customerName}%0AAmount: ₹${inv.grandTotal.toLocaleString('en-IN')}%0ADate: ${inv.date}`;
               window.open(`https://wa.me/?text=${text}`, '_blank');
             }}>
-              <Share2 className="w-4 h-4 mr-2" /> {t('btnWhatsapp')}
+              <Share2 className="w-4 h-4 mr-2" /> 📱 Share WhatsApp
             </Button>
 
-            <Button onClick={resetChat} className="w-full min-h-[48px]">
-              {t('btnNewInvoice')}
-            </Button>
-            <Button variant="ghost" className="w-full min-h-[44px] text-muted-foreground" onClick={resetChat}>
-              {t('btnDashboard')}
-            </Button>
+            {/* Payment Status Section */}
+            <div className="glass-card p-3 space-y-3">
+              <p className="text-sm font-semibold text-foreground text-center">── Payment Status ──</p>
+              <div className="grid grid-cols-3 gap-2">
+                <Button
+                  variant={donePaymentStatus === 'paid' ? 'default' : 'outline'}
+                  className={`min-h-[44px] text-xs ${donePaymentStatus === 'paid' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}
+                  onClick={() => handleDonePaymentStatus('paid')}
+                >✅ Paid</Button>
+                <Button
+                  variant={donePaymentStatus === 'partial' ? 'default' : 'outline'}
+                  className={`min-h-[44px] text-xs ${donePaymentStatus === 'partial' ? 'bg-amber-600 hover:bg-amber-700' : ''}`}
+                  onClick={() => handleDonePaymentStatus('partial')}
+                >⚡ Partial</Button>
+                <Button
+                  variant={donePaymentStatus === 'pending' ? 'default' : 'outline'}
+                  className={`min-h-[44px] text-xs ${donePaymentStatus === 'pending' ? 'bg-red-600 hover:bg-red-700' : ''}`}
+                  onClick={() => handleDonePaymentStatus('pending')}
+                >⏳ Not Now</Button>
+              </div>
+              
+              {showPartialInput && (
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    value={partialAmountInput}
+                    onChange={e => setPartialAmountInput(e.target.value)}
+                    placeholder="Kitna payment mila?"
+                    className="flex-1"
+                  />
+                  <Button onClick={handlePartialPaymentSave} size="sm" className="min-h-[40px]">Save</Button>
+                </div>
+              )}
+
+              {donePaymentStatus === 'paid' && (
+                <div className="text-center space-y-2 pt-2 border-t border-muted">
+                  <p className="text-xs text-muted-foreground">Kya credit note banana hai?</p>
+                  <div className="flex gap-2 justify-center">
+                    <Button size="sm" variant="outline" onClick={startCreditNoteFlow} className="min-h-[36px]">Haan</Button>
+                    <Button size="sm" variant="ghost" className="min-h-[36px]">Nahi</Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <Button onClick={resetChat} className="flex-1 min-h-[48px]">➕ New Invoice</Button>
+              <Button variant="ghost" className="flex-1 min-h-[44px] text-muted-foreground" onClick={resetChat}>🏠 Dashboard</Button>
+            </div>
           </div>
         )}
 
-        {/* ====== PANEL: CHAT (normal chatbot flow) ====== */}
+        {/* CHAT PANEL */}
         {panelMode === 'chat' && (
           <>
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
