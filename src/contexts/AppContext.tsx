@@ -474,10 +474,58 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, [currentUser?.id]);
 
+  const setCreditNotes: React.Dispatch<React.SetStateAction<CreditNote[]>> = useCallback((action) => {
+    setCreditNotesRaw(prev => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      const tenantId = currentUser?.id || '';
+      for (const cn of next) {
+        const local = toLocalCreditNote(cn);
+        db.credit_notes.put(local).then(async () => {
+          const items = cn.items.map(it => toLocalCnItem(it, cn.id));
+          await db.credit_note_items.where('credit_note_id').equals(cn.id).delete().catch(() => {});
+          if (items.length > 0) await db.credit_note_items.bulkPut(items);
+          const existing = prev.find(x => x.id === cn.id);
+          if (!existing) {
+            queueSync('credit_notes', cn.id, 'CREATE', local);
+            for (const item of items) queueSync('credit_note_items', item.id, 'CREATE', item);
+          } else {
+            queueSync('credit_notes', cn.id, 'UPDATE', local);
+          }
+          triggerSync(tenantId);
+        });
+      }
+      saveToStorage('bs_creditNotes', next);
+      return next;
+    });
+  }, [currentUser?.id]);
+
+  const setDebitNotes: React.Dispatch<React.SetStateAction<DebitNote[]>> = useCallback((action) => {
+    setDebitNotesRaw(prev => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      const tenantId = currentUser?.id || '';
+      for (const dn of next) {
+        const local = toLocalDebitNote(dn);
+        db.debit_notes.put(local).then(() => {
+          const existing = prev.find(x => x.id === dn.id);
+          if (!existing) {
+            queueSync('debit_notes', dn.id, 'CREATE', local);
+          } else {
+            queueSync('debit_notes', dn.id, 'UPDATE', local);
+          }
+          triggerSync(tenantId);
+        });
+      }
+      saveToStorage('bs_debitNotes', next);
+      return next;
+    });
+  }, [currentUser?.id]);
+
   return (
     <AppContext.Provider value={{
       currentUser, users, customers, products, invoices, payments, purchases,
+      creditNotes, debitNotes,
       setCurrentUser, setUsers, setCustomers, setProducts, setInvoices, setPayments, setPurchases,
+      setCreditNotes, setDebitNotes,
       dbReady,
     }}>
       {children}
