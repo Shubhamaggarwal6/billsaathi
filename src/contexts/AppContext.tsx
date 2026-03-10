@@ -203,6 +203,28 @@ function fromLocalDebitNote(dn: LocalDebitNote): DebitNote {
   };
 }
 
+// Supplier converters
+function toLocalSupplier(s: Supplier): LocalSupplier {
+  return {
+    id: s.id, tenant_id: s.userId, name: s.name, phone: s.phone || '',
+    email: s.email || '', gst_number: s.gstNumber || '', address: s.address || '',
+    city: s.city || '', state: s.state || '', pin: s.pin || '',
+    bank_name: s.bankName || '', bank_account: s.bankAccount || '', bank_ifsc: s.bankIfsc || '',
+    opening_balance: s.openingBalance || 0, is_deleted: false,
+    created_at: nowISO(), updated_at: nowISO(),
+  };
+}
+
+function fromLocalSupplier(s: LocalSupplier): Supplier {
+  return {
+    id: s.id, userId: s.tenant_id, name: s.name, phone: s.phone || '',
+    email: s.email || '', gstNumber: s.gst_number || '', address: s.address || '',
+    city: s.city || '', state: s.state || '', pin: s.pin || '',
+    bankName: s.bank_name || '', bankAccount: s.bank_account || '', bankIfsc: s.bank_ifsc || '',
+    openingBalance: s.opening_balance || 0,
+  };
+}
+
 function toLocalCnItem(item: import('@/lib/types').InvoiceItem, cnId: string): LocalCreditNoteItem {
   const taxable = item.quantity * item.price;
   return {
