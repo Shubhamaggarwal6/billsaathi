@@ -160,8 +160,8 @@ export default function ChatbotInvoice() {
   };
 
   const handleOptionClick = (opt: string, optKey?: string) => {
-    if (!startChoice || optKey === 'startInvoice' || optKey === 'startCreditNote' || optKey === 'startDebitNote' || optKey === 'btnOldCustomer' || optKey === 'btnNewCustomer') {
-      if (!startChoice && !['startInvoice', 'startCreditNote', 'startDebitNote'].includes(optKey || '')) {
+    if (!startChoice || optKey === 'startInvoice' || optKey === 'startCreditNote' || optKey === 'btnOldCustomer' || optKey === 'btnNewCustomer') {
+      if (!startChoice && !['startInvoice', 'startCreditNote'].includes(optKey || '')) {
         handleStartOption(opt, optKey);
         return;
       }
