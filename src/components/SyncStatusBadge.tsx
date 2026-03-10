@@ -78,11 +78,11 @@ export default function SyncStatusBadge({ tenantId }: { tenantId?: string }) {
     <>
       <button
         onClick={() => setPanelOpen(true)}
-        className="relative flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-muted/50 transition-colors shrink-0 min-w-[32px] min-h-[32px]"
+        className="relative flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-muted/50 transition-colors shrink-0 min-w-[32px] min-h-[32px] max-w-full overflow-hidden"
         title={labelText}
       >
         {icon}
-        {!isMobile && <span className="text-xs font-medium text-foreground whitespace-nowrap">{labelText}</span>}
+        {!isMobile && <span className="text-xs font-medium text-foreground truncate max-w-[100px]">{labelText}</span>}
         {(info.pendingCount > 0 || info.failedCount > 0) && (
           <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
             {info.pendingCount + info.failedCount}
