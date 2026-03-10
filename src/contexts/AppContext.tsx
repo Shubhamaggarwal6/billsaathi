@@ -257,21 +257,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     async function loadFromDb() {
       try {
-        const [localCustomers, localProducts, localInvoices, localPayments, localPurchases] = await Promise.all([
+        const [localCustomers, localProducts, localInvoices, localPayments, localPurchases, localCreditNotes, localDebitNotes] = await Promise.all([
           db.customers.filter(c => !c.is_deleted).toArray(),
           db.products.filter(p => !p.is_deleted).toArray(),
           db.invoices.filter(i => !i.is_deleted).toArray(),
           db.payments.filter(p => !p.is_deleted).toArray(),
           db.purchases.filter(p => !p.is_deleted).toArray(),
+          db.credit_notes.filter(cn => !cn.is_deleted).toArray().catch(() => []),
+          db.debit_notes.filter(dn => !dn.is_deleted).toArray().catch(() => []),
         ]);
 
         if (cancelled) return;
 
-        // Only use IndexedDB data if it exists
         if (localCustomers.length > 0) setCustomersRaw(localCustomers.map(fromLocalCustomer));
         if (localProducts.length > 0) setProductsRaw(localProducts.map(fromLocalProduct));
         if (localInvoices.length > 0) {
-          // Load items for each invoice
           const invs = await Promise.all(localInvoices.map(async inv => {
             const items = await db.invoice_items.where('invoice_id').equals(inv.id).toArray();
             const converted = fromLocalInvoice(inv);
@@ -288,6 +288,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         if (localPayments.length > 0) setPaymentsRaw(localPayments.map(fromLocalPayment));
         if (localPurchases.length > 0) setPurchasesRaw(localPurchases.map(fromLocalPurchase));
+        if (localCreditNotes.length > 0) {
+          const cns = await Promise.all(localCreditNotes.map(async cn => {
+            const items = await db.credit_note_items.where('credit_note_id').equals(cn.id).toArray().catch(() => []);
+            const converted = fromLocalCreditNote(cn);
+            converted.items = items.map(it => ({
+              productId: it.product_id || '', productName: it.product_name,
+              hsn: it.hsn_code || '', quantity: it.quantity, mrp: it.rate,
+              sellingPrice: it.rate, price: it.rate, discount: 0,
+              gstPercent: it.gst_rate || 0, unit: it.unit || 'Piece',
+            }));
+            return converted;
+          }));
+          setCreditNotesRaw(cns);
+        }
+        if (localDebitNotes.length > 0) setDebitNotesRaw(localDebitNotes.map(fromLocalDebitNote));
 
         setDbReady(true);
       } catch (err) {
