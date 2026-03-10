@@ -171,7 +171,12 @@ export default function ChatbotInvoice() {
   };
 
   const handleOptionClick = (opt: string, optKey?: string) => {
-    if (!startChoice) {
+    // Handle document type selection as start options
+    if (!startChoice || optKey === 'startInvoice' || optKey === 'startCreditNote' || optKey === 'startDebitNote' || optKey === 'btnOldCustomer' || optKey === 'btnNewCustomer') {
+      if (!startChoice && !['startInvoice', 'startCreditNote', 'startDebitNote'].includes(optKey || '')) {
+        handleStartOption(opt, optKey);
+        return;
+      }
       handleStartOption(opt, optKey);
       return;
     }
