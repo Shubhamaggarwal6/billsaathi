@@ -14,7 +14,7 @@ interface Props {
 }
 
 export default function CustomerProfile({ customer, onBack, readOnly }: Props) {
-  const { currentUser, users, invoices, payments, setInvoices, setPayments } = useApp();
+  const { currentUser, users, invoices, payments, creditNotes, debitNotes, setInvoices, setPayments } = useApp();
   const [activeTab, setActiveTab] = useState<'invoices' | 'ledger'>('invoices');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
