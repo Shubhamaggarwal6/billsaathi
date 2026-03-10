@@ -40,9 +40,11 @@ export default function CustomerProfile({ customer, onBack, readOnly }: Props) {
   }, [payments, customer.id, dateFrom, dateTo]);
 
   const totalPurchased = customerInvoices.reduce((s, i) => s + i.grandTotal, 0);
+  const totalCreditNotes = creditNotes.filter(cn => cn.customerId === customer.id && cn.status !== 'cancelled').reduce((s, cn) => s + cn.total, 0);
+  const totalDebitNotesUnpaid = debitNotes.filter(dn => dn.customerId === customer.id && dn.status === 'active').reduce((s, dn) => s + dn.total, 0);
   const totalPaid = customerPayments.reduce((s, p) => s + p.amount, 0) +
     customerInvoices.filter(i => i.status === 'paid').reduce((s, i) => s + i.grandTotal, 0);
-  const totalPending = totalPurchased - totalPaid;
+  const totalPending = totalPurchased - totalPaid - totalCreditNotes;
   const lastPurchase = customerInvoices.length > 0 ? customerInvoices.sort((a, b) => b.date.localeCompare(a.date))[0] : null;
   const lastPurchaseDays = lastPurchase ? Math.ceil((Date.now() - new Date(lastPurchase.date).getTime()) / 86400000) : null;
 
