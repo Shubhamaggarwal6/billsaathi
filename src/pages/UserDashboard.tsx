@@ -16,6 +16,7 @@ import {
   LayoutDashboard, MessageSquare, Users, Package, BarChart3,
   UserPlus, Settings, LogOut, FileText, AlertTriangle, ClipboardList, ShoppingCart, Menu, X, ChevronDown, ArrowLeft
 } from 'lucide-react';
+import SyncStatusBadge from '@/components/SyncStatusBadge';
 
 type Tab = 'dashboard' | 'chatbot' | 'invoices' | 'customers' | 'products' | 'reports' | 'employees' | 'settings' | 'purchases';
 
