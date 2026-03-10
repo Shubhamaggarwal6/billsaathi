@@ -226,6 +226,7 @@ interface AppState {
   purchases: PurchaseEntry[];
   creditNotes: CreditNote[];
   debitNotes: DebitNote[];
+  suppliers: Supplier[];
   setCurrentUser: (u: User | null) => void;
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
   setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
@@ -235,6 +236,7 @@ interface AppState {
   setPurchases: React.Dispatch<React.SetStateAction<PurchaseEntry[]>>;
   setCreditNotes: React.Dispatch<React.SetStateAction<CreditNote[]>>;
   setDebitNotes: React.Dispatch<React.SetStateAction<DebitNote[]>>;
+  setSuppliers: React.Dispatch<React.SetStateAction<Supplier[]>>;
   dbReady: boolean;
 }
 
