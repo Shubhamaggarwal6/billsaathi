@@ -258,6 +258,26 @@ export interface LocalDebitNoteItem {
   updated_at: string;
 }
 
+export interface LocalSupplier {
+  id: string;
+  tenant_id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  gst_number?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  pin?: string;
+  bank_name?: string;
+  bank_account?: string;
+  bank_ifsc?: string;
+  opening_balance?: number;
+  is_deleted?: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface SyncQueueItem {
   id: string;
   table_name: string;
