@@ -14,14 +14,15 @@ import InvoiceList from '@/components/InvoiceList';
 import PurchaseRegister from '@/components/PurchaseRegister';
 import CreditNotesList from '@/components/CreditNotesList';
 import DebitNotesList from '@/components/DebitNotesList';
+import SupplierManager from '@/components/SupplierManager';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
   LayoutDashboard, MessageSquare, Users, Package, BarChart3,
-  UserPlus, Settings, LogOut, FileText, AlertTriangle, ClipboardList, ShoppingCart, Menu, X, CreditCard, Receipt
+  UserPlus, Settings, LogOut, FileText, AlertTriangle, ClipboardList, ShoppingCart, Menu, X, CreditCard, Receipt, Factory
 } from 'lucide-react';
 import SyncStatusBadge from '@/components/SyncStatusBadge';
 
-type Tab = 'dashboard' | 'chatbot' | 'invoices' | 'credit-notes' | 'debit-notes' | 'customers' | 'products' | 'reports' | 'employees' | 'settings' | 'purchases';
+type Tab = 'dashboard' | 'chatbot' | 'invoices' | 'credit-notes' | 'debit-notes' | 'customers' | 'products' | 'suppliers' | 'reports' | 'employees' | 'settings' | 'purchases';
 
 export default function UserDashboard() {
   const { currentUser, users, invoices, products, customers, setCurrentUser } = useApp();
@@ -49,6 +50,7 @@ export default function UserDashboard() {
     { id: 'debit-notes', label: 'Debit Notes', icon: <Receipt className="w-5 h-5" /> },
     { id: 'customers', label: t('customers'), icon: <Users className="w-5 h-5" /> },
     { id: 'products', label: t('products'), icon: <Package className="w-5 h-5" /> },
+    { id: 'suppliers', label: 'Suppliers', icon: <Factory className="w-5 h-5" /> },
     { id: 'purchases', label: t('purchases'), icon: <ShoppingCart className="w-5 h-5" /> },
     { id: 'reports', label: t('reports'), icon: <BarChart3 className="w-5 h-5" /> },
     { id: 'employees', label: t('employees'), icon: <UserPlus className="w-5 h-5" /> },
@@ -204,6 +206,7 @@ export default function UserDashboard() {
             {activeTab === 'debit-notes' && <DebitNotesList />}
             {activeTab === 'customers' && <CustomerManager />}
             {activeTab === 'products' && <ProductManager />}
+            {activeTab === 'suppliers' && <SupplierManager />}
             {activeTab === 'reports' && <ReportsPanel />}
             {activeTab === 'purchases' && <PurchaseRegister />}
             {activeTab === 'employees' && <EmployeeManager />}

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { User, Customer, Product, Invoice, Payment, PurchaseEntry, CreditNote, DebitNote, Supplier } from '@/lib/types';
 import { initialUsers, initialCustomers, initialProducts, initialInvoices, initialPayments, initialPurchases } from '@/lib/demoData';
-import { db, queueSync, generateId, nowISO, type LocalCustomer, type LocalProduct, type LocalInvoice, type LocalInvoiceItem, type LocalPayment, type LocalPurchase, type LocalCreditNote, type LocalCreditNoteItem, type LocalDebitNote } from '@/lib/localDb';
+import { db, queueSync, generateId, nowISO, type LocalCustomer, type LocalProduct, type LocalInvoice, type LocalInvoiceItem, type LocalPayment, type LocalPurchase, type LocalCreditNote, type LocalCreditNoteItem, type LocalDebitNote, type LocalSupplier } from '@/lib/localDb';
 import { triggerSync, startAutoSync } from '@/lib/syncEngine';
 
 // Helpers to convert between old format and Dexie format
@@ -203,6 +203,28 @@ function fromLocalDebitNote(dn: LocalDebitNote): DebitNote {
   };
 }
 
+// Supplier converters
+function toLocalSupplier(s: Supplier): LocalSupplier {
+  return {
+    id: s.id, tenant_id: s.userId, name: s.name, phone: s.phone || '',
+    email: s.email || '', gst_number: s.gstNumber || '', address: s.address || '',
+    city: s.city || '', state: s.state || '', pin: s.pin || '',
+    bank_name: s.bankName || '', bank_account: s.bankAccount || '', bank_ifsc: s.bankIfsc || '',
+    opening_balance: s.openingBalance || 0, is_deleted: false,
+    created_at: nowISO(), updated_at: nowISO(),
+  };
+}
+
+function fromLocalSupplier(s: LocalSupplier): Supplier {
+  return {
+    id: s.id, userId: s.tenant_id, name: s.name, phone: s.phone || '',
+    email: s.email || '', gstNumber: s.gst_number || '', address: s.address || '',
+    city: s.city || '', state: s.state || '', pin: s.pin || '',
+    bankName: s.bank_name || '', bankAccount: s.bank_account || '', bankIfsc: s.bank_ifsc || '',
+    openingBalance: s.opening_balance || 0,
+  };
+}
+
 function toLocalCnItem(item: import('@/lib/types').InvoiceItem, cnId: string): LocalCreditNoteItem {
   const taxable = item.quantity * item.price;
   return {
@@ -260,7 +282,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     async function loadFromDb() {
       try {
-        const [localCustomers, localProducts, localInvoices, localPayments, localPurchases, localCreditNotes, localDebitNotes] = await Promise.all([
+        const [localCustomers, localProducts, localInvoices, localPayments, localPurchases, localCreditNotes, localDebitNotes, localSuppliers] = await Promise.all([
           db.customers.filter(c => !c.is_deleted).toArray(),
           db.products.filter(p => !p.is_deleted).toArray(),
           db.invoices.filter(i => !i.is_deleted).toArray(),
@@ -268,6 +290,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           db.purchases.filter(p => !p.is_deleted).toArray(),
           db.credit_notes.filter(cn => !cn.is_deleted).toArray().catch(() => []),
           db.debit_notes.filter(dn => !dn.is_deleted).toArray().catch(() => []),
+          db.suppliers.filter(s => !s.is_deleted).toArray().catch(() => []),
         ]);
 
         if (cancelled) return;
@@ -306,6 +329,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setCreditNotesRaw(cns);
         }
         if (localDebitNotes.length > 0) setDebitNotesRaw(localDebitNotes.map(fromLocalDebitNote));
+        if (localSuppliers.length > 0) setSuppliersRaw(localSuppliers.map(fromLocalSupplier));
 
         setDbReady(true);
       } catch (err) {
@@ -526,10 +550,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setSuppliers: React.Dispatch<React.SetStateAction<Supplier[]>> = useCallback((action) => {
     setSuppliersRaw(prev => {
       const next = typeof action === 'function' ? action(prev) : action;
+      const tenantId = currentUser?.id || '';
+      for (const s of next) {
+        const local = toLocalSupplier(s);
+        db.suppliers.put(local).then(() => {
+          const existing = prev.find(x => x.id === s.id);
+          if (!existing) {
+            queueSync('suppliers', s.id, 'CREATE', local);
+          } else {
+            queueSync('suppliers', s.id, 'UPDATE', local);
+          }
+          triggerSync(tenantId);
+        });
+      }
       saveToStorage('bs_suppliers', next);
       return next;
     });
-  }, []);
+  }, [currentUser?.id]);
 
   return (
     <AppContext.Provider value={{

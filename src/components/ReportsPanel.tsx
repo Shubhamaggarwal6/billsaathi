@@ -19,7 +19,7 @@ export default function ReportsPanel() {
   const { currentUser, users, invoices, products, customers, payments, purchases } = useApp();
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [reportTab, setReportTab] = useState<'overview' | 'gstr1' | 'gstr3b' | 'monthly' | 'outstanding'>('overview');
+  const [reportTab, setReportTab] = useState<'overview' | 'gstr1' | 'gstr3b' | 'monthly' | 'outstanding' | 'profit'>('overview');
   const isMobile = useIsMobile();
 
   const userId = currentUser?.id!;
@@ -141,11 +141,62 @@ export default function ReportsPanel() {
 
   const reportTabs = [
     { id: 'overview' as const, label: '📊 Overview' },
+    { id: 'profit' as const, label: '💰 P&L' },
     { id: 'gstr1' as const, label: '📋 GSTR-1' },
     { id: 'gstr3b' as const, label: '📋 GSTR-3B' },
     { id: 'monthly' as const, label: '📅 Monthly' },
     { id: 'outstanding' as const, label: '💰 Outstanding' },
   ];
+
+  // Profit calculation
+  const productProfitData = useMemo(() => {
+    const productSales: Record<string, { name: string; hsn: string; qtySold: number; revenue: number; sellingRates: number[]; purchaseRate: number | null }> = {};
+    myInvoices.forEach(inv => inv.items.forEach(it => {
+      if (!productSales[it.productName]) {
+        const prod = myProducts.find(p => p.name === it.productName);
+        productSales[it.productName] = { name: it.productName, hsn: it.hsn, qtySold: 0, revenue: 0, sellingRates: [], purchaseRate: null };
+      }
+      productSales[it.productName].qtySold += it.quantity;
+      productSales[it.productName].revenue += it.price * it.quantity;
+      productSales[it.productName].sellingRates.push(it.price);
+    }));
+    // Try to find purchase rates from purchases
+    myPurchases.forEach(p => {
+      if (productSales[p.description]) {
+        // approximate: taxable / assumed qty
+      }
+    });
+    return Object.values(productSales).map(ps => {
+      const avgSellingRate = ps.sellingRates.length > 0 ? ps.revenue / ps.qtySold : 0;
+      // Find product to get last_purchase_rate
+      const prod = myProducts.find(p => p.name === ps.name);
+      const purchaseRate = ps.purchaseRate;
+      const cost = purchaseRate !== null ? purchaseRate * ps.qtySold : null;
+      const profit = cost !== null ? ps.revenue - cost : null;
+      const margin = profit !== null && ps.revenue > 0 ? (profit / ps.revenue) * 100 : null;
+      return { ...ps, avgSellingRate, avgPurchaseRate: purchaseRate, cost, profit, margin };
+    }).sort((a, b) => (b.profit ?? 0) - (a.profit ?? 0));
+  }, [myInvoices, myProducts, myPurchases]);
+
+  const totalRevenuePL = productProfitData.reduce((s, p) => s + p.revenue, 0);
+  const totalCost = productProfitData.filter(p => p.cost !== null).reduce((s, p) => s + (p.cost || 0), 0);
+  const totalProfit = totalRevenuePL - totalCost;
+  const totalMargin = totalRevenuePL > 0 ? (totalProfit / totalRevenuePL) * 100 : 0;
+
+  // Monthly profit trend
+  const monthlyTrend = useMemo(() => {
+    const months: Record<string, { revenue: number; cost: number }> = {};
+    myInvoices.forEach(inv => {
+      const m = inv.date.substring(0, 7); // YYYY-MM
+      if (!months[m]) months[m] = { revenue: 0, cost: 0 };
+      inv.items.forEach(it => {
+        months[m].revenue += it.price * it.quantity;
+      });
+    });
+    return Object.entries(months).sort().slice(-12).map(([month, d]) => ({
+      month: month.substring(5), revenue: d.revenue, cost: d.cost, profit: d.revenue - d.cost,
+    }));
+  }, [myInvoices]);
 
   const chartHeight = isMobile ? 160 : 200;
 
@@ -654,6 +705,125 @@ export default function ReportsPanel() {
                 {outstandingByCustomer.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">Sab clear hai ✅</p>}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* PROFIT & LOSS TAB */}
+      {reportTab === 'profit' && (
+        <div className="space-y-4">
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="stat-card"><p className="text-xs text-muted-foreground">Total Revenue</p><p className="text-lg font-bold text-foreground">₹{totalRevenuePL.toLocaleString('en-IN')}</p></div>
+            <div className="stat-card"><p className="text-xs text-muted-foreground">Cost of Goods</p><p className="text-lg font-bold text-foreground">₹{totalCost.toLocaleString('en-IN')}</p></div>
+            <div className="stat-card"><p className="text-xs text-muted-foreground">Gross Profit</p><p className="text-lg font-bold" style={{ color: totalProfit >= 0 ? 'hsl(var(--success))' : 'hsl(var(--critical))' }}>₹{totalProfit.toLocaleString('en-IN')}</p></div>
+            <div className="stat-card"><p className="text-xs text-muted-foreground">Gross Margin</p><p className="text-lg font-bold" style={{ color: totalMargin >= 30 ? 'hsl(var(--success))' : totalMargin >= 10 ? 'hsl(37,95%,55%)' : 'hsl(var(--critical))' }}>{totalMargin.toFixed(1)}%</p></div>
+          </div>
+
+          {/* Monthly Profit Trend */}
+          <div className="glass-card p-4 md:p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Monthly Revenue Trend</h3>
+            {monthlyTrend.length > 0 ? (
+              <div className={isMobile ? 'overflow-x-auto -mx-4 px-4' : ''}>
+                <div style={{ minWidth: isMobile ? '400px' : 'auto' }}>
+                  <ResponsiveContainer width="100%" height={chartHeight}>
+                    <BarChart data={monthlyTrend}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="month" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                      <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                      <Tooltip formatter={(v: number) => [`₹${v.toLocaleString('en-IN')}`, '']} />
+                      <Legend />
+                      <Bar dataKey="revenue" fill="hsl(232,80%,50%)" name="Revenue" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="profit" fill="hsl(142,70%,40%)" name="Profit" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            ) : <p className="text-sm text-muted-foreground text-center py-8">Koi data nahi</p>}
+          </div>
+
+          {/* Product-wise Profit Table */}
+          <div className="glass-card p-4 md:p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-3">Product-wise Profit</h3>
+            {isMobile ? (
+              <div className="space-y-2">
+                {productProfitData.map(p => (
+                  <div key={p.name} className="border rounded-lg p-3">
+                    <div className="flex justify-between items-start">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{p.name}</p>
+                        <p className="text-[10px] text-muted-foreground">{p.hsn} • {p.qtySold} sold</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-bold text-foreground">₹{p.revenue.toLocaleString('en-IN')}</p>
+                        {p.margin !== null ? (
+                          <span className={`text-[10px] font-medium ${p.margin >= 30 ? 'text-emerald-600' : p.margin >= 10 ? 'text-amber-600' : p.margin >= 0 ? 'text-red-500' : 'text-red-800'}`}>
+                            {p.margin.toFixed(1)}% margin
+                          </span>
+                        ) : <span className="text-[10px] text-muted-foreground">N/A</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {productProfitData.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Koi data nahi</p>}
+              </div>
+            ) : (
+              <div className="overflow-auto">
+                <table className="w-full text-xs">
+                  <thead><tr className="border-b text-muted-foreground bg-muted/30">
+                    <th className="text-left py-2 px-2">Product</th><th className="text-left py-2 px-2">HSN</th>
+                    <th className="text-right py-2 px-2">Qty Sold</th><th className="text-right py-2 px-2">Avg Sell Rate</th>
+                    <th className="text-right py-2 px-2">Avg Buy Rate</th><th className="text-right py-2 px-2">Revenue</th>
+                    <th className="text-right py-2 px-2">Cost</th><th className="text-right py-2 px-2">Profit</th>
+                    <th className="text-right py-2 px-2">Margin%</th>
+                  </tr></thead>
+                  <tbody>
+                    {productProfitData.map(p => (
+                      <tr key={p.name} className="border-b hover:bg-muted/30">
+                        <td className="py-2 px-2 font-medium text-foreground">{p.name}</td>
+                        <td className="py-2 px-2 text-muted-foreground">{p.hsn}</td>
+                        <td className="py-2 px-2 text-right text-foreground">{p.qtySold}</td>
+                        <td className="py-2 px-2 text-right text-foreground">₹{p.avgSellingRate.toFixed(0)}</td>
+                        <td className="py-2 px-2 text-right text-foreground">{p.avgPurchaseRate !== null ? `₹${p.avgPurchaseRate.toFixed(0)}` : 'N/A'}</td>
+                        <td className="py-2 px-2 text-right text-foreground">₹{p.revenue.toLocaleString('en-IN')}</td>
+                        <td className="py-2 px-2 text-right text-foreground">{p.cost !== null ? `₹${p.cost.toLocaleString('en-IN')}` : 'N/A'}</td>
+                        <td className="py-2 px-2 text-right font-medium" style={{ color: p.profit !== null ? (p.profit >= 0 ? 'hsl(var(--success))' : 'hsl(var(--critical))') : undefined }}>
+                          {p.profit !== null ? `₹${p.profit.toLocaleString('en-IN')}` : 'N/A'}
+                        </td>
+                        <td className="py-2 px-2 text-right font-bold" style={{ color: p.margin !== null ? (p.margin >= 30 ? 'hsl(142,70%,40%)' : p.margin >= 10 ? 'hsl(37,95%,55%)' : p.margin >= 0 ? 'hsl(0,72%,51%)' : 'hsl(0,50%,30%)') : undefined }}>
+                          {p.margin !== null ? `${p.margin.toFixed(1)}%` : 'N/A'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {productProfitData.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Koi data nahi</p>}
+              </div>
+            )}
+          </div>
+
+          {/* Top 5 Profitable Products */}
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="glass-card p-4 md:p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-3">Top 5 by Profit</h3>
+              {productProfitData.filter(p => p.profit !== null).slice(0, 5).map((p, i) => (
+                <div key={p.name} className="flex justify-between items-center text-sm py-1.5 border-b last:border-0">
+                  <span className="text-foreground truncate">{i + 1}. {p.name}</span>
+                  <span className="font-medium shrink-0" style={{ color: (p.profit || 0) >= 0 ? 'hsl(var(--success))' : 'hsl(var(--critical))' }}>₹{(p.profit || 0).toLocaleString('en-IN')}</span>
+                </div>
+              ))}
+              {productProfitData.filter(p => p.profit !== null).length === 0 && <p className="text-sm text-muted-foreground">Purchase data needed</p>}
+            </div>
+            <div className="glass-card p-4 md:p-5">
+              <h3 className="text-sm font-semibold text-foreground mb-3">Top 5 by Margin %</h3>
+              {productProfitData.filter(p => p.margin !== null).sort((a, b) => (b.margin || 0) - (a.margin || 0)).slice(0, 5).map((p, i) => (
+                <div key={p.name} className="flex justify-between items-center text-sm py-1.5 border-b last:border-0">
+                  <span className="text-foreground truncate">{i + 1}. {p.name}</span>
+                  <span className="font-medium shrink-0" style={{ color: (p.margin || 0) >= 30 ? 'hsl(142,70%,40%)' : (p.margin || 0) >= 10 ? 'hsl(37,95%,55%)' : 'hsl(0,72%,51%)' }}>{(p.margin || 0).toFixed(1)}%</span>
+                </div>
+              ))}
+              {productProfitData.filter(p => p.margin !== null).length === 0 && <p className="text-sm text-muted-foreground">Purchase data needed</p>}
+            </div>
           </div>
         </div>
       )}
