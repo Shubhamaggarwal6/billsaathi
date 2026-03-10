@@ -1216,6 +1216,7 @@ export const translations: Record<Language, Record<string, string>> = {
     syncErrorFk: 'Related record server par nahi mila',
     syncErrorJwt: 'Session expire ho gayi — dobara login karein',
     syncErrorGeneric: 'Sync error — retry hoga',
+    syncErrorDemo: 'Demo data — server par sync nahi hoga',
     dismiss: 'Hatao',
     savedLocally: '✅ Local mein save — sync hoga jab online ho',
     phCustomerSearch: 'Customer naam, phone ya GST...',
