@@ -26,9 +26,48 @@ export function addDuration(startDate: string, duration: string): string {
   return date.toISOString().split('T')[0];
 }
 
-export function formatDate(dateStr: string): string {
+const HINDI_MONTHS = ['जनवरी', 'फरवरी', 'मार्च', 'अप्रैल', 'मई', 'जून', 'जुलाई', 'अगस्त', 'सितम्बर', 'अक्टूबर', 'नवम्बर', 'दिसम्बर'];
+const ENGLISH_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const ENGLISH_MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * Format date based on language setting.
+ * - English/Gujarati/Hinglish: English format
+ * - Hindi: Hindi month names
+ */
+export function formatDate(dateStr: string, language?: string): string {
   const d = new Date(dateStr);
-  return d.toLocaleDateString('hi-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  if (isNaN(d.getTime())) return dateStr;
+  
+  const day = d.getDate();
+  const month = d.getMonth();
+  const year = d.getFullYear();
+  
+  const lang = language || localStorage.getItem('bs_language') || 'hi';
+  
+  if (lang === 'hi') {
+    return `${day} ${HINDI_MONTHS[month]} ${year}`;
+  }
+  
+  // English, Hinglish, Gujarati all use English format
+  return `${day} ${ENGLISH_MONTHS[month]} ${year}`;
+}
+
+export function formatDateShort(dateStr: string, language?: string): string {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  
+  const day = d.getDate();
+  const month = d.getMonth();
+  const year = d.getFullYear();
+  
+  const lang = language || localStorage.getItem('bs_language') || 'hi';
+  
+  if (lang === 'hi') {
+    return `${day} ${HINDI_MONTHS[month].substring(0, 3)} ${year}`;
+  }
+  
+  return `${ENGLISH_MONTHS_SHORT[month]} ${day}, ${year}`;
 }
 
 export function numberToWords(num: number): string {
