@@ -112,6 +112,12 @@ async function pushChanges(): Promise<void> {
 
 // PULL server changes to local
 async function pullChanges(tenantId: string): Promise<void> {
+  // Don't pull if tenantId is not a valid UUID (demo data)
+  if (!UUID_REGEX.test(tenantId)) {
+    console.warn('Skipping pull — tenantId is not a valid UUID:', tenantId);
+    return;
+  }
+
   for (const table of SYNC_TABLES) {
     try {
       const meta = await db.sync_metadata.get(table);
@@ -123,7 +129,10 @@ async function pullChanges(tenantId: string): Promise<void> {
         .order('updated_at', { ascending: true });
 
       // Filter by tenant_id for tenant-scoped tables
-      if (table !== 'invoice_items') {
+      // tenants table uses 'id' not 'tenant_id'
+      if (table === 'tenants') {
+        query = query.eq('id', tenantId);
+      } else if (table !== 'invoice_items') {
         query = query.eq('tenant_id', tenantId);
       }
 
