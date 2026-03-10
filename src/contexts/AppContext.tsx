@@ -282,7 +282,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     async function loadFromDb() {
       try {
-        const [localCustomers, localProducts, localInvoices, localPayments, localPurchases, localCreditNotes, localDebitNotes] = await Promise.all([
+        const [localCustomers, localProducts, localInvoices, localPayments, localPurchases, localCreditNotes, localDebitNotes, localSuppliers] = await Promise.all([
           db.customers.filter(c => !c.is_deleted).toArray(),
           db.products.filter(p => !p.is_deleted).toArray(),
           db.invoices.filter(i => !i.is_deleted).toArray(),
@@ -290,6 +290,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           db.purchases.filter(p => !p.is_deleted).toArray(),
           db.credit_notes.filter(cn => !cn.is_deleted).toArray().catch(() => []),
           db.debit_notes.filter(dn => !dn.is_deleted).toArray().catch(() => []),
+          db.suppliers.filter(s => !s.is_deleted).toArray().catch(() => []),
         ]);
 
         if (cancelled) return;
