@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { User, Customer, Product, Invoice, Payment, PurchaseEntry, CreditNote, DebitNote, Supplier } from '@/lib/types';
 import { initialUsers, initialCustomers, initialProducts, initialInvoices, initialPayments, initialPurchases } from '@/lib/demoData';
-import { db, queueSync, generateId, nowISO, type LocalCustomer, type LocalProduct, type LocalInvoice, type LocalInvoiceItem, type LocalPayment, type LocalPurchase, type LocalCreditNote, type LocalCreditNoteItem, type LocalDebitNote } from '@/lib/localDb';
+import { db, queueSync, generateId, nowISO, type LocalCustomer, type LocalProduct, type LocalInvoice, type LocalInvoiceItem, type LocalPayment, type LocalPurchase, type LocalCreditNote, type LocalCreditNoteItem, type LocalDebitNote, type LocalSupplier } from '@/lib/localDb';
 import { triggerSync, startAutoSync } from '@/lib/syncEngine';
 
 // Helpers to convert between old format and Dexie format
