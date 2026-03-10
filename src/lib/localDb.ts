@@ -170,6 +170,94 @@ export interface LocalPurchase {
 export type SyncOperation = 'CREATE' | 'UPDATE' | 'DELETE';
 export type SyncStatus = 'PENDING' | 'SYNCING' | 'DONE' | 'FAILED';
 
+export interface LocalCreditNote {
+  id: string;
+  tenant_id: string;
+  credit_note_number: string;
+  credit_note_date: string;
+  original_invoice_id?: string;
+  original_invoice_number?: string;
+  customer_id?: string;
+  customer_name: string;
+  reason?: string;
+  subtotal?: number;
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
+  total?: number;
+  misc_amount?: number;
+  misc_reason?: string;
+  notes?: string;
+  status?: string;
+  created_by?: string;
+  created_by_name?: string;
+  is_deleted?: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LocalCreditNoteItem {
+  id: string;
+  credit_note_id: string;
+  product_id?: string;
+  product_name: string;
+  hsn_code?: string;
+  quantity: number;
+  rate: number;
+  unit?: string;
+  taxable_amount?: number;
+  gst_rate?: number;
+  cgst_amount?: number;
+  sgst_amount?: number;
+  igst_amount?: number;
+  total_amount?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LocalDebitNote {
+  id: string;
+  tenant_id: string;
+  debit_note_number: string;
+  debit_note_date: string;
+  original_invoice_id?: string;
+  original_invoice_number?: string;
+  customer_id?: string;
+  customer_name: string;
+  reason?: string;
+  amount?: number;
+  subtotal?: number;
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
+  total?: number;
+  notes?: string;
+  status?: string;
+  created_by?: string;
+  created_by_name?: string;
+  is_deleted?: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LocalDebitNoteItem {
+  id: string;
+  debit_note_id: string;
+  product_id?: string;
+  product_name: string;
+  hsn_code?: string;
+  quantity: number;
+  rate: number;
+  taxable_amount?: number;
+  gst_rate?: number;
+  cgst_amount?: number;
+  sgst_amount?: number;
+  igst_amount?: number;
+  total_amount?: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface SyncQueueItem {
   id: string;
   table_name: string;
@@ -197,6 +285,10 @@ class BillSaathiDB extends Dexie {
   invoice_items!: Table<LocalInvoiceItem, string>;
   payments!: Table<LocalPayment, string>;
   purchases!: Table<LocalPurchase, string>;
+  credit_notes!: Table<LocalCreditNote, string>;
+  credit_note_items!: Table<LocalCreditNoteItem, string>;
+  debit_notes!: Table<LocalDebitNote, string>;
+  debit_note_items!: Table<LocalDebitNoteItem, string>;
   sync_queue!: Table<SyncQueueItem, string>;
   sync_metadata!: Table<SyncMetadata, string>;
 
@@ -213,6 +305,12 @@ class BillSaathiDB extends Dexie {
       purchases: 'id, tenant_id, is_deleted, updated_at',
       sync_queue: 'id, table_name, record_id, status, created_at',
       sync_metadata: 'table_name',
+    });
+    this.version(2).stores({
+      credit_notes: 'id, tenant_id, credit_note_number, original_invoice_id, customer_id, is_deleted, updated_at',
+      credit_note_items: 'id, credit_note_id, product_id',
+      debit_notes: 'id, tenant_id, debit_note_number, original_invoice_id, customer_id, is_deleted, updated_at',
+      debit_note_items: 'id, debit_note_id, product_id',
     });
   }
 }

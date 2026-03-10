@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const SYNC_TABLES = ['tenants', 'users', 'customers', 'products', 'invoices', 'invoice_items', 'payments', 'purchases'] as const;
+const SYNC_TABLES = ['tenants', 'users', 'customers', 'products', 'invoices', 'invoice_items', 'payments', 'purchases', 'credit_notes', 'credit_note_items', 'debit_notes', 'debit_note_items'] as const;
 type SyncTable = typeof SYNC_TABLES[number];
 
 export type SyncState = 'synced' | 'syncing' | 'pending' | 'offline';
