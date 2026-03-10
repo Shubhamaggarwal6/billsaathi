@@ -5,11 +5,11 @@ import { getStateFromGST } from '@/lib/types';
 import { printGSTInvoice } from '@/lib/invoicePrint';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Printer, Pencil, Trash2, RotateCcw, Home } from 'lucide-react';
+import { Send, Printer, Pencil, Trash2, RotateCcw, Home, FileText, Download, Share2, ArrowLeft, Plus, Package, Car, User, Hash } from 'lucide-react';
 import type { Customer, Product, InvoiceItem, Invoice, Payment } from '@/lib/types';
 
-type Step =
-  | 'start'
+// State machine — clear, non-overlapping states
+type ChatStep =
   | 'select-customer'
   | 'confirm-customer'
   | 'new-customer-name'
@@ -27,12 +27,13 @@ type Step =
   | 'new-product-gst'
   | 'new-product-unit'
   | 'more-products'
-  | 'preview'
   | 'payment-ask'
   | 'payment-mode'
   | 'payment-partial-amount'
-  | 'payment-partial-mode'
-  | 'done';
+  | 'payment-partial-mode';
+
+// These are separate UI panels, NOT chat states
+type PanelMode = 'chat' | 'preview' | 'edit' | 'done';
 
 interface Message {
   from: 'bot' | 'user';
@@ -46,22 +47,24 @@ export default function ChatbotInvoice() {
     { from: 'bot', text: '🙏 Namaskar! Naya invoice banayein?\nCustomer naya hai ya purana?', options: ['Purana Customer', 'Naya Customer'] }
   ]);
   const [input, setInput] = useState('');
-  const [step, setStep] = useState<Step>('start');
+  const [step, setStep] = useState<ChatStep>('select-customer');
+  const [panelMode, setPanelMode] = useState<PanelMode>('chat');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [newCust, setNewCust] = useState({ name: '', phone: '', gstNumber: '', address: '' });
   const [vehicle, setVehicle] = useState('');
+  const [ewayBill, setEwayBill] = useState('');
   const [items, setItems] = useState<InvoiceItem[]>([]);
   const [currentItem, setCurrentItem] = useState<Partial<InvoiceItem>>({});
   const [newProd, setNewProd] = useState({ name: '', hsn: '', price: 0, gstPercent: 18, unit: 'Piece' });
-  const [showInvoice, setShowInvoice] = useState(false);
   const [suggestions, setSuggestions] = useState<(Customer | Product)[]>([]);
-  const [lastCreatedInvoiceId, setLastCreatedInvoiceId] = useState<string | null>(null);
+  const [lastCreatedInvoice, setLastCreatedInvoice] = useState<Invoice | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [startChoice, setStartChoice] = useState(false); // whether user chose purana/naya
 
-  // Edit state
-  const [editTarget, setEditTarget] = useState<string | null>(null);
-  const [returnStep, setReturnStep] = useState<Step | null>(null);
+  // Edit mode sub-state
+  const [editField, setEditField] = useState<string | null>(null);
+  const [editInput, setEditInput] = useState('');
 
   const userId = currentUser?.role === 'employee' ? currentUser.parentUserId! : currentUser?.id!;
   const myCustomers = customers.filter(c => c.userId === userId);
@@ -72,8 +75,8 @@ export default function ChatbotInvoice() {
   }, [messages]);
 
   useEffect(() => {
-    inputRef.current?.focus();
-  }, [step]);
+    if (panelMode === 'chat') inputRef.current?.focus();
+  }, [step, panelMode]);
 
   const addMsg = (from: 'bot' | 'user', text: string, options?: string[]) => {
     setMessages(prev => [...prev, { from, text, options }]);
@@ -83,41 +86,17 @@ export default function ChatbotInvoice() {
     setInput(value);
     if (step === 'select-customer' && value.trim().length >= 1) {
       const q = value.toLowerCase();
-      const matches = myCustomers.filter(c =>
-        c.name.toLowerCase().includes(q) ||
-        c.phone.includes(q) ||
+      setSuggestions(myCustomers.filter(c =>
+        c.name.toLowerCase().includes(q) || c.phone.includes(q) ||
         (c.gstNumber && c.gstNumber.toLowerCase().includes(q))
-      ).slice(0, 5);
-      setSuggestions(matches);
-    } else if ((step === 'add-product') && value.trim().length >= 1) {
+      ).slice(0, 5));
+    } else if (step === 'add-product' && value.trim().length >= 1) {
       const q = value.toLowerCase();
-      const matches = myProducts.filter(p =>
-        p.name.toLowerCase().includes(q) ||
-        p.hsn.toLowerCase().includes(q)
-      ).slice(0, 5);
-      setSuggestions(matches);
+      setSuggestions(myProducts.filter(p =>
+        p.name.toLowerCase().includes(q) || p.hsn.toLowerCase().includes(q)
+      ).slice(0, 5));
     } else {
       setSuggestions([]);
-    }
-  };
-
-  const handleOption = (opt: string) => {
-    addMsg('user', opt);
-    if (step === 'start') {
-      if (opt === 'Purana Customer') {
-        addMsg('bot', 'Customer ka naam ya number likhein:');
-        setStep('select-customer');
-      } else {
-        addMsg('bot', 'Naye customer ka naam batayein:');
-        setStep('new-customer-name');
-      }
-    } else if (step === 'more-products') {
-      if (opt === 'Haan ➕') {
-        addMsg('bot', 'Kaun sa product chahiye? Naam likhein:');
-        setStep('add-product');
-      } else {
-        showPreview();
-      }
     }
   };
 
@@ -139,9 +118,105 @@ export default function ChatbotInvoice() {
     setStep('product-selling-price');
   };
 
+  // Go to preview panel — NO message added
+  const goToPreview = () => {
+    setPanelMode('preview');
+  };
+
+  const handleStartOption = (opt: string) => {
+    addMsg('user', opt);
+    setStartChoice(true);
+    if (opt === 'Purana Customer') {
+      addMsg('bot', 'Customer ka naam ya number likhein:');
+      setStep('select-customer');
+    } else {
+      addMsg('bot', 'Naye customer ka naam batayein:');
+      setStep('new-customer-name');
+    }
+  };
+
+  const handleOptionClick = (opt: string) => {
+    // Start options
+    if (!startChoice) {
+      handleStartOption(opt);
+      return;
+    }
+
+    addMsg('user', opt);
+
+    if (step === 'confirm-customer') {
+      if (opt === 'Haan ✅') {
+        addMsg('bot', 'Gaadi number? (optional — khali Enter = skip)');
+        setStep('vehicle');
+      } else {
+        setSelectedCustomer(null);
+        addMsg('bot', 'Customer ka naam ya number likhein:');
+        setStep('select-customer');
+      }
+      return;
+    }
+    if (step === 'more-products') {
+      if (opt === 'Haan ➕') {
+        addMsg('bot', 'Kaun sa product chahiye? Naam likhein:');
+        setStep('add-product');
+      } else {
+        goToPreview();
+      }
+      return;
+    }
+
+    // Payment flow
+    if (step === 'payment-ask') {
+      handlePaymentAsk(opt);
+      return;
+    }
+    if (step === 'payment-mode') {
+      handlePaymentMode(opt);
+      return;
+    }
+    if (step === 'payment-partial-mode') {
+      handlePartialPaymentMode(opt);
+      return;
+    }
+
+    // Misc
+    if (opt === 'Naya Customer') {
+      addMsg('bot', 'Naye customer ka naam batayein:');
+      setStep('new-customer-name');
+      return;
+    }
+    if (opt === 'Phir se likhein') {
+      addMsg('bot', 'Customer ka naam ya number likhein:');
+      setStep('select-customer');
+      return;
+    }
+    if (step === 'select-customer') {
+      const name = opt.split(' (')[0];
+      const cust = myCustomers.find(c => c.name === name);
+      if (cust) selectCustomer(cust);
+      return;
+    }
+    if (step === 'add-product') {
+      const pName = opt.split(' (₹')[0];
+      const p = myProducts.find(pr => pr.name === pName);
+      if (p) selectProduct(p);
+      return;
+    }
+    if (opt === 'Haan, add karein') {
+      addMsg('bot', 'Naye product ka naam?');
+      setStep('new-product-name');
+      return;
+    }
+    if (opt === 'Nahi') {
+      addMsg('bot', 'Kaun sa product chahiye? Naam likhein:');
+      setStep('add-product');
+      return;
+    }
+  };
+
   const handleSend = () => {
     const text = input.trim();
-    const skippableSteps: Step[] = ['vehicle', 'new-customer-gst', 'new-customer-address', 'new-product-hsn', 'product-selling-price', 'product-discount'];
+    const skippableSteps: ChatStep[] = ['vehicle', 'new-customer-gst', 'new-customer-address', 'new-product-hsn', 'product-selling-price', 'product-discount'];
     if (!text && !skippableSteps.includes(step)) return;
     setInput('');
     setSuggestions([]);
@@ -151,13 +226,9 @@ export default function ChatbotInvoice() {
     switch (step) {
       case 'select-customer': {
         const matches = myCustomers.filter(c => c.name.toLowerCase().includes(text.toLowerCase()));
-        if (matches.length === 1) {
-          selectCustomer(matches[0]);
-        } else if (matches.length > 1) {
-          addMsg('bot', 'Kaun sa customer?', matches.map(c => `${c.name} (${c.phone})`));
-        } else {
-          addMsg('bot', 'Koi customer nahi mila. Naya add karein?', ['Naya Customer', 'Phir se likhein']);
-        }
+        if (matches.length === 1) selectCustomer(matches[0]);
+        else if (matches.length > 1) addMsg('bot', 'Kaun sa customer?', matches.map(c => `${c.name} (${c.phone})`));
+        else addMsg('bot', 'Koi customer nahi mila. Naya add karein?', ['Naya Customer', 'Phir se likhein']);
         break;
       }
       case 'new-customer-name':
@@ -177,10 +248,7 @@ export default function ChatbotInvoice() {
         break;
       case 'new-customer-address': {
         const custId = 'c_' + Date.now();
-        const cust: Customer = {
-          id: custId, userId, name: newCust.name, phone: newCust.phone,
-          gstNumber: newCust.gstNumber, address: text
-        };
+        const cust: Customer = { id: custId, userId, name: newCust.name, phone: newCust.phone, gstNumber: newCust.gstNumber, address: text };
         setCustomers(prev => [...prev, cust]);
         setSelectedCustomer(cust);
         setNewCust({ name: '', phone: '', gstNumber: '', address: '' });
@@ -190,27 +258,14 @@ export default function ChatbotInvoice() {
       }
       case 'vehicle':
         setVehicle(text);
-        if (editTarget === 'vehicle' && returnStep) {
-          addMsg('bot', '✅ Gaadi number update ho gaya!');
-          setEditTarget(null);
-          const rs = returnStep;
-          setReturnStep(null);
-          if (rs === 'preview') { setTimeout(() => showPreview(), 0); }
-          else setStep(rs);
-        } else {
-          addMsg('bot', 'Kaun sa product chahiye? Naam likhein:');
-          setStep('add-product');
-        }
+        addMsg('bot', 'Kaun sa product chahiye? Naam likhein:');
+        setStep('add-product');
         break;
       case 'add-product': {
         const matches = myProducts.filter(p => p.name.toLowerCase().includes(text.toLowerCase()));
-        if (matches.length === 1) {
-          selectProduct(matches[0]);
-        } else if (matches.length > 1) {
-          addMsg('bot', 'Kaun sa product?', matches.map(p => `${p.name} (₹${p.price})`));
-        } else {
-          addMsg('bot', 'Product nahi mila. Naya product add karein?', ['Haan, add karein', 'Nahi']);
-        }
+        if (matches.length === 1) selectProduct(matches[0]);
+        else if (matches.length > 1) addMsg('bot', 'Kaun sa product?', matches.map(p => `${p.name} (₹${p.price})`));
+        else addMsg('bot', 'Product nahi mila. Naya product add karein?', ['Haan, add karein', 'Nahi']);
         break;
       }
       case 'product-selling-price': {
@@ -221,15 +276,10 @@ export default function ChatbotInvoice() {
           if (isNaN(sp) || sp <= 0) { addMsg('bot', 'Sahi price daalein!'); return; }
           sellingPrice = sp;
         }
-        const discountFromMrp = mrp > 0 && sellingPrice < mrp
-          ? Math.round(((mrp - sellingPrice) / mrp) * 100 * 100) / 100
-          : 0;
+        const discountFromMrp = mrp > 0 && sellingPrice < mrp ? Math.round(((mrp - sellingPrice) / mrp) * 100 * 100) / 100 : 0;
         setCurrentItem(prev => ({ ...prev, sellingPrice }));
-
         let msg = `Selling Price: ₹${sellingPrice}/${currentItem.unit}`;
-        if (discountFromMrp > 0) {
-          msg += `\n🏷️ MRP se ${discountFromMrp}% discount!`;
-        }
+        if (discountFromMrp > 0) msg += `\n🏷️ MRP se ${discountFromMrp}% discount!`;
         msg += `\nKoi aur discount dena hai selling price pe? (% mein likhein, ya Enter = no discount)`;
         addMsg('bot', msg);
         setStep('product-discount');
@@ -245,11 +295,8 @@ export default function ChatbotInvoice() {
         const sellingPrice = currentItem.sellingPrice || currentItem.mrp || 0;
         const finalPrice = Math.round(sellingPrice * (1 - discountPct / 100) * 100) / 100;
         setCurrentItem(prev => ({ ...prev, discount: discountPct, price: finalPrice }));
-
         let msg = `✅ Final Price: ₹${finalPrice}/${currentItem.unit}`;
-        if (discountPct > 0) {
-          msg += ` (${discountPct}% discount on ₹${sellingPrice})`;
-        }
+        if (discountPct > 0) msg += ` (${discountPct}% discount on ₹${sellingPrice})`;
         if (currentItem.mrp && finalPrice < currentItem.mrp) {
           const totalDisc = Math.round(((currentItem.mrp - finalPrice) / currentItem.mrp) * 100 * 100) / 100;
           msg += `\n🏷️ MRP ₹${currentItem.mrp} se kul ${totalDisc}% off`;
@@ -262,10 +309,7 @@ export default function ChatbotInvoice() {
       case 'product-quantity': {
         const qty = Number(text);
         if (isNaN(qty) || qty <= 0) { addMsg('bot', 'Sahi quantity daalein!'); return; }
-        const item: InvoiceItem = {
-          ...currentItem as InvoiceItem,
-          quantity: qty,
-        };
+        const item: InvoiceItem = { ...currentItem as InvoiceItem, quantity: qty };
         setItems(prev => [...prev, item]);
         setCurrentItem({});
         addMsg('bot', `✅ ${item.productName} x ${qty} add ho gaya!\nAur product add karein?`, ['Haan ➕', 'Nahi, Invoice Banao ✅']);
@@ -300,21 +344,17 @@ export default function ChatbotInvoice() {
       case 'new-product-unit': {
         const unit = text || 'Piece';
         const prodId = 'p_' + Date.now();
-        const prod: Product = {
-          id: prodId, userId, name: newProd.name, hsn: newProd.hsn,
-          price: newProd.price, gstPercent: newProd.gstPercent, unit, stock: 0, lowStockThreshold: 5
-        };
+        const prod: Product = { id: prodId, userId, name: newProd.name, hsn: newProd.hsn, price: newProd.price, gstPercent: newProd.gstPercent, unit, stock: 0, lowStockThreshold: 5 };
         setProducts(prev => [...prev, prod]);
         setCurrentItem({ productId: prod.id, productName: prod.name, hsn: prod.hsn, mrp: prod.price, gstPercent: prod.gstPercent, unit: prod.unit });
         setNewProd({ name: '', hsn: '', price: 0, gstPercent: 18, unit: 'Piece' });
-        addMsg('bot', `✅ Product "${prod.name}" save ho gaya! MRP: ₹${prod.price}/${prod.unit}\nSelling price kya rakhni hai? (MRP se alag ho to likhein, warna Enter dabao)`);
+        addMsg('bot', `✅ Product "${prod.name}" save ho gaya! MRP: ₹${prod.price}/${prod.unit}\nSelling price kya rakhni hai?`);
         setStep('product-selling-price');
         break;
       }
       case 'payment-partial-amount': {
         const amt = Number(text);
         if (isNaN(amt) || amt <= 0) { addMsg('bot', 'Sahi amount daalein!'); return; }
-        // Store partial amount temporarily
         setCurrentItem(prev => ({ ...prev, price: amt } as any));
         addMsg('bot', `₹${amt.toLocaleString('en-IN')} payment — kis tarike se mila?`, ['💵 Cash', '📱 UPI', '🏦 Bank Transfer', '🏦 RTGS', '📝 Cheque']);
         setStep('payment-partial-mode');
@@ -323,240 +363,46 @@ export default function ChatbotInvoice() {
     }
   };
 
-  const handleOptionClick = (opt: string) => {
-    addMsg('user', opt);
-    if (step === 'confirm-customer') {
-      if (opt === 'Haan ✅') {
-        addMsg('bot', 'Gaadi number? (optional — khali Enter = skip)');
-        setStep('vehicle');
-      } else {
-        setSelectedCustomer(null);
-        addMsg('bot', 'Customer ka naam ya number likhein:');
-        setStep('select-customer');
-      }
-      return;
-    }
-    if (step === 'start' || step === 'more-products') {
-      handleOption(opt);
-      return;
-    }
-    if (step === 'preview') {
-      handleConfirm(opt);
-      return;
-    }
-    if (step === 'done') {
-      if (opt === '📋 Nayi Invoice Banao') resetChat();
-      return;
-    }
-
-    // Payment flow options
-    if (step === 'payment-ask') {
-      handlePaymentAsk(opt);
-      return;
-    }
-    if (step === 'payment-mode') {
-      handlePaymentMode(opt);
-      return;
-    }
-    if (step === 'payment-partial-mode') {
-      handlePartialPaymentMode(opt);
-      return;
-    }
-
-    if (opt === 'Naya Customer') {
-      addMsg('bot', 'Naye customer ka naam batayein:');
-      setStep('new-customer-name');
-      return;
-    }
-    if (opt === 'Phir se likhein') {
-      addMsg('bot', 'Customer ka naam ya number likhein:');
-      setStep('select-customer');
-      return;
-    }
-    if (step === 'select-customer') {
-      const name = opt.split(' (')[0];
-      const cust = myCustomers.find(c => c.name === name);
-      if (cust) selectCustomer(cust);
-      return;
-    }
-    if (step === 'add-product') {
-      const pName = opt.split(' (₹')[0];
-      const p = myProducts.find(pr => pr.name === pName);
-      if (p) selectProduct(p);
-      return;
-    }
-    if (opt === 'Haan, add karein') {
-      addMsg('bot', 'Naye product ka naam?');
-      setStep('new-product-name');
-      return;
-    }
-    if (opt === 'Nahi') {
-      addMsg('bot', 'Kaun sa product chahiye? Naam likhein:');
-      setStep('add-product');
-      return;
-    }
-    if (opt === '✏️ Kuch Badlein') {
-      addMsg('bot', 'Kya badalna hai?', [
-        '✏️ Customer Badlein',
-        '✏️ Gaadi No. Badlein',
-        '🗑️ Product Hatao',
-        '⬅️ Wapas Jaao'
-      ]);
-      return;
-    }
-    if (opt === '🗑️ Sab Cancel') {
-      resetChat();
-      return;
-    }
-    if (opt === '✏️ Customer Badlein') {
-      setSelectedCustomer(null);
-      addMsg('bot', 'Customer ka naam ya number likhein:');
-      setEditTarget('customer');
-      setReturnStep('preview');
-      setStep('select-customer');
-      return;
-    }
-    if (opt === '✏️ Gaadi No. Badlein') {
-      addMsg('bot', 'Naya gaadi number likhein (ya khali Enter = skip):');
-      setEditTarget('vehicle');
-      setReturnStep('preview');
-      setStep('vehicle');
-      return;
-    }
-    if (opt === '🗑️ Product Hatao') {
-      if (items.length === 0) {
-        addMsg('bot', 'Koi product nahi hai abhi.');
-        showPreview();
-      } else {
-        addMsg('bot', 'Kaun sa product hatana hai?', items.map((it, i) => `🗑️ ${it.productName} x${it.quantity}`));
-      }
-      return;
-    }
-    if (opt.startsWith('🗑️ ')) {
-      const prodName = opt.replace('🗑️ ', '').split(' x')[0];
-      setItems(prev => {
-        const idx = prev.findIndex(i => i.productName === prodName);
-        if (idx >= 0) return [...prev.slice(0, idx), ...prev.slice(idx + 1)];
-        return prev;
-      });
-      addMsg('bot', `${prodName} hata diya gaya.`);
-      setTimeout(() => showPreview(), 100);
-      return;
-    }
-    if (opt === '⬅️ Wapas Jaao') {
-      showPreview();
-      return;
-    }
-  };
-
-  const showPreview = () => {
-    setStep('preview');
-    setEditTarget(null);
-    setReturnStep(null);
+  // ---- Invoice creation (from preview) ----
+  const createInvoice = () => {
+    if (items.length === 0) return;
     const totalAmount = items.reduce((s, i) => s + i.price * i.quantity, 0);
     const totalGst = items.reduce((s, i) => s + (i.price * i.quantity * i.gstPercent) / 100, 0);
-    const grandTotal = totalAmount + totalGst;
-    const itemList = items.map((it, i) => {
-      let line = `${i + 1}. ${it.productName} x${it.quantity}`;
-      if (it.mrp && it.mrp !== it.price) {
-        line += ` | MRP: ₹${it.mrp} → ₹${it.price}`;
-        const totalDisc = Math.round(((it.mrp - it.price) / it.mrp) * 100 * 100) / 100;
-        line += ` (${totalDisc}% off)`;
-      }
-      line += ` = ₹${(it.price * it.quantity).toLocaleString('en-IN')} (+${it.gstPercent}% GST)`;
-      return line;
-    }).join('\n');
-    addMsg('bot',
-      `📋 Invoice Preview:\n\nCustomer: ${selectedCustomer?.name || 'N/A'}${vehicle ? `\nGaadi No: ${vehicle}` : ''}\n\n${itemList}\n\nSubtotal: ₹${totalAmount.toLocaleString('en-IN')}\nGST: ₹${totalGst.toLocaleString('en-IN')}\n━━━━━━━━━━━━━━━━━\nGrand Total: ₹${grandTotal.toLocaleString('en-IN')}\n(${numberToWords(Math.round(grandTotal))} Rupees Only)`,
-      ['✅ Invoice Banao', '✏️ Kuch Badlein', '🗑️ Sab Cancel']
-    );
-  };
-
-  useEffect(() => {
-    if (editTarget === 'customer' && selectedCustomer && step === 'vehicle' && returnStep === 'preview') {
-      setStep('preview');
-      setEditTarget(null);
-      setReturnStep(null);
-      setTimeout(() => showPreview(), 0);
-    }
-  }, [selectedCustomer, step, editTarget, returnStep]);
-
-  const handleConfirm = (opt: string) => {
-    if (opt === '✅ Invoice Banao') {
-      if (items.length === 0) {
-        addMsg('bot', 'Pehle koi product add karein!');
-        return;
-      }
-      const totalAmount = items.reduce((s, i) => s + i.price * i.quantity, 0);
-      const totalGst = items.reduce((s, i) => s + (i.price * i.quantity * i.gstPercent) / 100, 0);
-
-      const firmUser = currentUser?.role === 'employee'
-        ? users.find(u => u.id === currentUser.parentUserId)
-        : currentUser;
-      const sellerStateCode = firmUser?.firmSettings?.stateCode || firmUser?.gstNumber?.substring(0, 2) || '';
-      const buyerStateCode = selectedCustomer?.stateCode || (selectedCustomer?.gstNumber ? selectedCustomer.gstNumber.substring(0, 2) : sellerStateCode);
-      const isInterState = sellerStateCode !== buyerStateCode;
-      const totalCgst = isInterState ? 0 : totalGst / 2;
-      const totalSgst = isInterState ? 0 : totalGst / 2;
-      const totalIgst = isInterState ? totalGst : 0;
-      const rawGrand = totalAmount + totalGst;
-      const grandTotal = Math.round(rawGrand);
-      const roundOff = Math.round((grandTotal - rawGrand) * 100) / 100;
-
-      const buyerState = getStateFromGST(selectedCustomer?.gstNumber || '');
-      const sellerState = getStateFromGST(firmUser?.gstNumber || '');
-
-      const invNum = `${firmUser?.firmSettings?.invoicePrefix || 'INV'}-${new Date().getFullYear()}-${String(invoices.filter(i => i.userId === userId).length + 1).padStart(4, '0')}`;
-      const invId = 'inv_' + Date.now();
-      const invoice: Invoice = {
-        id: invId,
-        userId,
-        invoiceNumber: invNum,
-        date: new Date().toISOString().split('T')[0],
-        customerId: selectedCustomer!.id,
-        customerName: selectedCustomer!.name,
-        customerGst: selectedCustomer!.gstNumber,
-        customerAddress: selectedCustomer!.address,
-        customerState: buyerState?.name || selectedCustomer?.state || '',
-        customerStateCode: buyerStateCode,
-        vehicleNumber: vehicle,
-        items,
-        totalAmount,
-        totalGst,
-        totalCgst,
-        totalSgst,
-        totalIgst,
-        grandTotal,
-        roundOff,
-        isInterState,
-        placeOfSupply: buyerState?.name || selectedCustomer?.state || sellerState?.name || '',
-        status: 'pending',
-        paidAmount: 0,
-        createdBy: {
-          id: currentUser!.id,
-          name: currentUser!.role === 'employee'
-            ? currentUser!.username
-            : currentUser!.firmName || currentUser!.username,
-          role: currentUser!.role,
-          timestamp: new Date().toISOString(),
-        },
-      };
-      setInvoices(prev => [...prev, invoice]);
-      setProducts(prev => prev.map(p => {
-        const item = items.find(i => i.productId === p.id);
-        return item ? { ...p, stock: Math.max(0, p.stock - item.quantity) } : p;
-      }));
-      setLastCreatedInvoiceId(invId);
-      addMsg('bot', `🎉 Invoice ban gayi! Invoice No: ${invNum}\nGrand Total: ₹${grandTotal.toLocaleString('en-IN')}\n\n💰 Payment mila hai?`, [
-        '✅ Poora Mila (Full Paid)',
-        '🟡 Thoda Mila (Partial)',
-        '🔴 Abhi Nahi (Credit/Pending)',
-      ]);
-      setShowInvoice(true);
-      setStep('payment-ask');
-    } else {
-      handleOptionClick(opt);
-    }
+    const firmUser = currentUser?.role === 'employee' ? users.find(u => u.id === currentUser.parentUserId) : currentUser;
+    const sellerStateCode = firmUser?.firmSettings?.stateCode || firmUser?.gstNumber?.substring(0, 2) || '';
+    const buyerStateCode = selectedCustomer?.stateCode || (selectedCustomer?.gstNumber ? selectedCustomer.gstNumber.substring(0, 2) : sellerStateCode);
+    const isInterState = sellerStateCode !== buyerStateCode;
+    const totalCgst = isInterState ? 0 : totalGst / 2;
+    const totalSgst = isInterState ? 0 : totalGst / 2;
+    const totalIgst = isInterState ? totalGst : 0;
+    const rawGrand = totalAmount + totalGst;
+    const grandTotal = Math.round(rawGrand);
+    const roundOff = Math.round((grandTotal - rawGrand) * 100) / 100;
+    const buyerState = getStateFromGST(selectedCustomer?.gstNumber || '');
+    const sellerState = getStateFromGST(firmUser?.gstNumber || '');
+    const invNum = `${firmUser?.firmSettings?.invoicePrefix || 'INV'}-${new Date().getFullYear()}-${String(invoices.filter(i => i.userId === userId).length + 1).padStart(4, '0')}`;
+    const invId = 'inv_' + Date.now();
+    const invoice: Invoice = {
+      id: invId, userId, invoiceNumber: invNum, date: new Date().toISOString().split('T')[0],
+      customerId: selectedCustomer!.id, customerName: selectedCustomer!.name,
+      customerGst: selectedCustomer!.gstNumber, customerAddress: selectedCustomer!.address,
+      customerState: buyerState?.name || selectedCustomer?.state || '',
+      customerStateCode: buyerStateCode, vehicleNumber: vehicle, ewayBillNumber: ewayBill,
+      items, totalAmount, totalGst, totalCgst, totalSgst, totalIgst,
+      grandTotal, roundOff, isInterState,
+      placeOfSupply: buyerState?.name || selectedCustomer?.state || sellerState?.name || '',
+      status: 'pending', paidAmount: 0,
+      createdBy: { id: currentUser!.id, name: currentUser!.role === 'employee' ? currentUser!.username : currentUser!.firmName || currentUser!.username, role: currentUser!.role, timestamp: new Date().toISOString() },
+    };
+    setInvoices(prev => [...prev, invoice]);
+    setProducts(prev => prev.map(p => { const item = items.find(i => i.productId === p.id); return item ? { ...p, stock: Math.max(0, p.stock - item.quantity) } : p; }));
+    setLastCreatedInvoice(invoice);
+    // Go to payment flow in chat
+    setPanelMode('chat');
+    addMsg('bot', `🎉 Invoice ban gayi! Invoice No: ${invNum}\nGrand Total: ₹${grandTotal.toLocaleString('en-IN')}\n\n💰 Payment mila hai?`, [
+      '✅ Poora Mila (Full Paid)', '🟡 Thoda Mila (Partial)', '🔴 Abhi Nahi (Credit/Pending)',
+    ]);
+    setStep('payment-ask');
   };
 
   const handlePaymentAsk = (opt: string) => {
@@ -564,102 +410,64 @@ export default function ChatbotInvoice() {
       addMsg('bot', '💰 Kis tarike se mila?', ['💵 Cash', '📱 UPI', '🏦 Bank Transfer', '🏦 RTGS', '📝 Cheque']);
       setStep('payment-mode');
     } else if (opt === '🟡 Thoda Mila (Partial)') {
-      const inv = invoices.find(i => i.id === lastCreatedInvoiceId) || invoices[invoices.length - 1];
-      addMsg('bot', `Grand Total: ₹${inv?.grandTotal?.toLocaleString('en-IN') || '0'}\nKitna mila hai (₹)?`);
+      addMsg('bot', `Grand Total: ₹${lastCreatedInvoice?.grandTotal?.toLocaleString('en-IN') || '0'}\nKitna mila hai (₹)?`);
       setStep('payment-partial-amount');
-    } else if (opt === '🔴 Abhi Nahi (Credit/Pending)') {
-      // Keep as pending
-      addMsg('bot', '✅ Invoice pending / credit mein save ho gayi.', ['🖨️ Print Karein', '📋 Nayi Invoice Banao']);
-      setStep('done');
+    } else {
+      setPanelMode('done');
     }
   };
 
   const handlePaymentMode = (opt: string) => {
-    const modeMap: Record<string, Payment['mode']> = {
-      '💵 Cash': 'Cash',
-      '📱 UPI': 'UPI',
-      '🏦 Bank Transfer': 'Bank Transfer',
-      '🏦 RTGS': 'RTGS',
-      '📝 Cheque': 'Cheque',
-    };
+    const modeMap: Record<string, Payment['mode']> = { '💵 Cash': 'Cash', '📱 UPI': 'UPI', '🏦 Bank Transfer': 'Bank Transfer', '🏦 RTGS': 'RTGS', '📝 Cheque': 'Cheque' };
     const mode = modeMap[opt] || 'Cash';
-    const inv = invoices.find(i => i.id === lastCreatedInvoiceId) || invoices[invoices.length - 1];
+    const inv = lastCreatedInvoice;
     if (inv) {
-      const payment: Payment = {
-        id: 'pay_' + Date.now(),
-        userId,
-        customerId: inv.customerId,
-        invoiceId: inv.id,
-        amount: inv.grandTotal,
-        date: new Date().toISOString().split('T')[0],
-        mode,
-        note: `Full payment for ${inv.invoiceNumber}`,
-        timestamp: new Date().toISOString(),
-      };
+      const payment: Payment = { id: 'pay_' + Date.now(), userId, customerId: inv.customerId, invoiceId: inv.id, amount: inv.grandTotal, date: new Date().toISOString().split('T')[0], mode, note: `Full payment for ${inv.invoiceNumber}`, timestamp: new Date().toISOString() };
       setPayments(prev => [...prev, payment]);
       setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'paid' as const, paidAmount: inv.grandTotal } : i));
+      setLastCreatedInvoice({ ...inv, status: 'paid', paidAmount: inv.grandTotal });
     }
-    addMsg('bot', `✅ ₹${inv?.grandTotal?.toLocaleString('en-IN')} ${mode} se receive ho gaya!\nInvoice status: 🟢 Paid`, ['🖨️ Print Karein', '📋 Nayi Invoice Banao']);
-    setStep('done');
+    setPanelMode('done');
   };
 
   const handlePartialPaymentMode = (opt: string) => {
-    const modeMap: Record<string, Payment['mode']> = {
-      '💵 Cash': 'Cash',
-      '📱 UPI': 'UPI',
-      '🏦 Bank Transfer': 'Bank Transfer',
-      '🏦 RTGS': 'RTGS',
-      '📝 Cheque': 'Cheque',
-    };
+    const modeMap: Record<string, Payment['mode']> = { '💵 Cash': 'Cash', '📱 UPI': 'UPI', '🏦 Bank Transfer': 'Bank Transfer', '🏦 RTGS': 'RTGS', '📝 Cheque': 'Cheque' };
     const mode = modeMap[opt] || 'Cash';
     const partialAmt = (currentItem as any)?.price || 0;
-    const inv = invoices.find(i => i.id === lastCreatedInvoiceId) || invoices[invoices.length - 1];
+    const inv = lastCreatedInvoice;
     if (inv) {
-      const payment: Payment = {
-        id: 'pay_' + Date.now(),
-        userId,
-        customerId: inv.customerId,
-        invoiceId: inv.id,
-        amount: partialAmt,
-        date: new Date().toISOString().split('T')[0],
-        mode,
-        note: `Partial payment for ${inv.invoiceNumber}`,
-        timestamp: new Date().toISOString(),
-      };
+      const payment: Payment = { id: 'pay_' + Date.now(), userId, customerId: inv.customerId, invoiceId: inv.id, amount: partialAmt, date: new Date().toISOString().split('T')[0], mode, note: `Partial payment for ${inv.invoiceNumber}`, timestamp: new Date().toISOString() };
       setPayments(prev => [...prev, payment]);
       const newPaid = (inv.paidAmount || 0) + partialAmt;
       const newStatus = newPaid >= inv.grandTotal ? 'paid' as const : 'partial' as const;
       setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: newStatus, paidAmount: newPaid } : i));
-      const remaining = inv.grandTotal - newPaid;
-      addMsg('bot', `✅ ₹${partialAmt.toLocaleString('en-IN')} ${mode} se receive ho gaya!\nPaid: ₹${newPaid.toLocaleString('en-IN')} | Baaki: ₹${remaining.toLocaleString('en-IN')}\nInvoice status: ${newStatus === 'paid' ? '🟢 Paid' : '🟡 Partial'}`, ['🖨️ Print Karein', '📋 Nayi Invoice Banao']);
+      setLastCreatedInvoice({ ...inv, status: newStatus, paidAmount: newPaid });
     }
     setCurrentItem({});
-    setStep('done');
+    setPanelMode('done');
   };
 
   const resetChat = () => {
     setMessages([{ from: 'bot', text: '🙏 Namaskar! Naya invoice banayein?\nCustomer naya hai ya purana?', options: ['Purana Customer', 'Naya Customer'] }]);
-    setStep('start');
+    setStep('select-customer');
+    setPanelMode('chat');
+    setStartChoice(false);
     setSelectedCustomer(null);
     setNewCust({ name: '', phone: '', gstNumber: '', address: '' });
     setVehicle('');
+    setEwayBill('');
     setItems([]);
     setCurrentItem({});
-    setShowInvoice(false);
     setSuggestions([]);
-    setEditTarget(null);
-    setReturnStep(null);
-    setLastCreatedInvoiceId(null);
+    setEditField(null);
+    setEditInput('');
+    setLastCreatedInvoice(null);
   };
 
   const printInvoice = () => {
-    const inv = lastCreatedInvoiceId
-      ? invoices.find(i => i.id === lastCreatedInvoiceId)
-      : invoices[invoices.length - 1];
+    const inv = lastCreatedInvoice || invoices[invoices.length - 1];
     if (!inv) return;
-    const firm = currentUser?.role === 'employee'
-      ? users.find(u => u.id === currentUser.parentUserId)
-      : currentUser;
+    const firm = currentUser?.role === 'employee' ? users.find(u => u.id === currentUser.parentUserId) : currentUser;
     printGSTInvoice(inv, firm);
   };
 
@@ -685,157 +493,311 @@ export default function ChatbotInvoice() {
     }
   };
 
-  const hasSummaryData = selectedCustomer || vehicle || items.length > 0;
-  const showSummary = hasSummaryData && step !== 'start' && step !== 'done';
-  const showInput = !['done', 'start', 'confirm-customer', 'more-products', 'preview', 'payment-ask', 'payment-mode', 'payment-partial-mode'].includes(step);
+  const noInputSteps: ChatStep[] = ['confirm-customer', 'more-products', 'payment-ask', 'payment-mode', 'payment-partial-mode'];
+  const showInput = panelMode === 'chat' && startChoice && !noInputSteps.includes(step);
 
+  // ---- Compute invoice totals for preview ----
+  const totalAmount = items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const totalGst = items.reduce((s, i) => s + (i.price * i.quantity * i.gstPercent) / 100, 0);
+  const grandTotal = Math.round(totalAmount + totalGst);
+
+  // ===== EDIT MODE HANDLERS =====
+  const handleEditAction = (action: string) => {
+    setEditField(action);
+    setEditInput('');
+    if (action === 'customer') {
+      // Show customer search inline in edit panel
+    } else if (action === 'vehicle') {
+      setEditInput(vehicle);
+    } else if (action === 'eway') {
+      setEditInput(ewayBill);
+    }
+  };
+
+  const applyEdit = () => {
+    if (editField === 'vehicle') {
+      setVehicle(editInput);
+    } else if (editField === 'eway') {
+      setEwayBill(editInput);
+    }
+    setEditField(null);
+    setEditInput('');
+  };
+
+  const removeProduct = (index: number) => {
+    setItems(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // ===== RENDER =====
   return (
     <div className="animate-fade-in h-full flex flex-col">
       <h2 className="text-xl font-bold text-foreground mb-4">🤖 Invoice Banao - Chatbot</h2>
 
       <div className="glass-card flex-1 flex flex-col overflow-hidden">
-        {/* Summary Card */}
-        {showSummary && (
-          <div className="border-b bg-muted/30 p-3 text-sm space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-foreground text-xs">📋 Invoice Summary (abhi tak)</span>
-              <Button size="sm" variant="ghost" className="h-6 text-xs text-destructive" onClick={resetChat}>
-                <RotateCcw className="w-3 h-3 mr-1" /> Sab clear
-              </Button>
-            </div>
-            {selectedCustomer && (
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Customer: <span className="text-foreground font-medium">{selectedCustomer.name}</span></span>
-                {step !== 'select-customer' && step !== 'confirm-customer' && (
-                  <button className="text-xs text-primary hover:underline" onClick={() => {
-                    setSelectedCustomer(null);
-                    setEditTarget('customer');
-                    setReturnStep(step);
-                    addMsg('bot', 'Customer ka naam ya number likhein:');
-                    setStep('select-customer');
-                  }}>✏️ Badlein</button>
-                )}
+        {/* ====== PANEL: PREVIEW ====== */}
+        {panelMode === 'preview' && (
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <h3 className="text-lg font-bold text-foreground">📋 Invoice Preview</h3>
+
+            <div className="space-y-3">
+              <div className="bg-muted/30 rounded-lg p-3 space-y-1">
+                <p className="text-xs text-muted-foreground">Customer</p>
+                <p className="text-sm font-medium text-foreground">{selectedCustomer?.name || 'N/A'}</p>
+                {selectedCustomer?.phone && <p className="text-xs text-muted-foreground">{selectedCustomer.phone}</p>}
+                {selectedCustomer?.gstNumber && <p className="text-xs text-muted-foreground">GST: {selectedCustomer.gstNumber}</p>}
               </div>
-            )}
-            {vehicle && (
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Gaadi No: <span className="text-foreground font-medium">{vehicle}</span></span>
-                <button className="text-xs text-primary hover:underline" onClick={() => {
-                  setEditTarget('vehicle');
-                  setReturnStep(step);
-                  addMsg('bot', 'Naya gaadi number likhein (ya khali Enter = skip):');
-                  setStep('vehicle');
-                }}>✏️ Badlein</button>
-              </div>
-            )}
-            {items.length > 0 && (
-              <div className="space-y-1">
-                <span className="text-muted-foreground text-xs">Products:</span>
+
+              {vehicle && (
+                <div className="bg-muted/30 rounded-lg p-3">
+                  <p className="text-xs text-muted-foreground">Gaadi No</p>
+                  <p className="text-sm font-medium text-foreground">{vehicle}</p>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground">Products</p>
                 {items.map((it, i) => (
-                  <div key={i} className="flex items-center justify-between pl-2">
-                    <span className="text-foreground text-xs">
-                      • {it.productName} x{it.quantity} = ₹{(it.price * it.quantity).toLocaleString('en-IN')}
-                      {it.mrp && it.mrp !== it.price && (
-                        <span className="text-destructive ml-1 text-[10px]">
-                          (MRP ₹{it.mrp} → ₹{it.price}, {Math.round(((it.mrp - it.price) / it.mrp) * 100)}% off)
-                        </span>
-                      )}
-                    </span>
-                    <button className="text-destructive hover:text-destructive/80 text-xs" onClick={() => {
-                      setItems(prev => prev.filter((_, idx) => idx !== i));
-                      addMsg('bot', `🗑️ ${it.productName} hata diya.`);
-                    }}>🗑️</button>
+                  <div key={i} className="bg-muted/30 rounded-lg p-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{it.productName} × {it.quantity}</p>
+                      <p className="text-xs text-muted-foreground">
+                        ₹{it.price}/{it.unit} • GST {it.gstPercent}%
+                        {it.mrp && it.mrp !== it.price && ` • MRP ₹${it.mrp}`}
+                      </p>
+                    </div>
+                    <p className="text-sm font-bold text-foreground">₹{(it.price * it.quantity).toLocaleString('en-IN')}</p>
                   </div>
                 ))}
               </div>
-            )}
-          </div>
-        )}
 
-        {/* Chat Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {messages.map((msg, i) => (
-            <div key={i} className={`flex ${msg.from === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] rounded-xl px-4 py-2.5 text-sm whitespace-pre-line ${msg.from === 'user'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-foreground'
-                }`}>
-                {msg.text}
-                {msg.options && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {msg.options.map(opt => (
-                      <button
-                        key={opt}
-                        onClick={() => {
-                          if (opt === '🖨️ Print Karein') { printInvoice(); return; }
-                          handleOptionClick(opt);
-                        }}
-                        className="px-3 py-1.5 bg-card border rounded-lg text-xs font-medium hover:bg-muted transition-colors text-foreground"
-                      >
-                        {opt}
-                      </button>
-                    ))}
-                  </div>
-                )}
+              <div className="border-t pt-3 space-y-1">
+                <div className="flex justify-between text-sm"><span className="text-muted-foreground">Subtotal</span><span className="text-foreground">₹{totalAmount.toLocaleString('en-IN')}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-muted-foreground">GST</span><span className="text-foreground">₹{totalGst.toLocaleString('en-IN')}</span></div>
+                <div className="flex justify-between text-base font-bold border-t pt-2"><span className="text-foreground">Grand Total</span><span className="text-primary">₹{grandTotal.toLocaleString('en-IN')}</span></div>
+                <p className="text-xs text-muted-foreground italic">({numberToWords(grandTotal)} Rupees Only)</p>
               </div>
             </div>
-          ))}
-          <div ref={chatEndRef} />
-        </div>
 
-        {/* Suggestions Dropdown */}
-        {suggestions.length > 0 && (step === 'select-customer' || step === 'add-product') && (
-          <div className="border-t bg-card px-3 py-2 space-y-1 max-h-48 overflow-y-auto">
-            <p className="text-xs text-muted-foreground font-medium mb-1">
-              {step === 'select-customer' ? 'Customers:' : 'Products:'}
-            </p>
-            {step === 'select-customer' && (suggestions as Customer[]).map(c => (
-              <button
-                key={c.id}
-                onClick={() => selectCustomer(c)}
-                className="w-full text-left px-3 py-2 rounded-lg hover:bg-muted transition-colors flex items-center justify-between text-sm"
-              >
-                <span className="font-medium text-foreground">{c.name}</span>
-                <span className="text-xs text-muted-foreground">{c.phone}{c.gstNumber ? ` • ${c.gstNumber}` : ''}</span>
-              </button>
-            ))}
-            {step === 'add-product' && (suggestions as Product[]).map(p => (
-              <button
-                key={p.id}
-                onClick={() => selectProduct(p)}
-                className="w-full text-left px-3 py-2 rounded-lg hover:bg-muted transition-colors flex items-center justify-between text-sm"
-              >
-                <span className="font-medium text-foreground">{p.name}</span>
-                <span className="text-xs text-muted-foreground">₹{p.price} • Stock: {p.stock}</span>
-              </button>
-            ))}
+            <div className="flex gap-2 pt-2">
+              <Button onClick={createInvoice} className="flex-1 min-h-[48px]" disabled={items.length === 0}>
+                ✅ Invoice Banao
+              </Button>
+              <Button variant="outline" onClick={() => setPanelMode('edit')} className="min-h-[48px]">
+                ✏️ Kuch Badlein
+              </Button>
+            </div>
+            <Button variant="ghost" className="w-full text-destructive min-h-[44px]" onClick={resetChat}>
+              🗑️ Sab Cancel
+            </Button>
           </div>
         )}
 
-        {/* Input */}
-        {showInput && (
-          <div className="border-t p-3 flex gap-2">
-            <Input
-              ref={inputRef}
-              value={input}
-              onChange={e => handleInputChange(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleSend(); }}
-              placeholder={getPlaceholder()}
-              className="flex-1"
-            />
-            <Button size="sm" onClick={handleSend}><Send className="w-4 h-4" /></Button>
-          </div>
-        )}
+        {/* ====== PANEL: EDIT ====== */}
+        {panelMode === 'edit' && (
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <h3 className="text-lg font-bold text-foreground">✏️ Kya Badalna Hai?</h3>
 
-        {step === 'done' && (
-          <div className="border-t p-3 flex gap-2">
-            {showInvoice && (
-              <Button size="sm" variant="outline" onClick={printInvoice}>
-                <Printer className="w-4 h-4 mr-1" /> Print Invoice
+            {!editField ? (
+              <div className="space-y-2">
+                <button onClick={() => handleEditAction('customer')} className="w-full flex items-center gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors text-left min-h-[48px]">
+                  <User className="w-5 h-5 text-primary" />
+                  <div><p className="text-sm font-medium text-foreground">Customer Badlo</p><p className="text-xs text-muted-foreground">{selectedCustomer?.name || 'N/A'}</p></div>
+                </button>
+                <button onClick={() => handleEditAction('vehicle')} className="w-full flex items-center gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors text-left min-h-[48px]">
+                  <Car className="w-5 h-5 text-primary" />
+                  <div><p className="text-sm font-medium text-foreground">Gaadi Number Badlo</p><p className="text-xs text-muted-foreground">{vehicle || 'N/A'}</p></div>
+                </button>
+                <button onClick={() => handleEditAction('eway')} className="w-full flex items-center gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors text-left min-h-[48px]">
+                  <Hash className="w-5 h-5 text-primary" />
+                  <div><p className="text-sm font-medium text-foreground">E-Way Bill Badlo</p><p className="text-xs text-muted-foreground">{ewayBill || 'N/A'}</p></div>
+                </button>
+                <button onClick={() => handleEditAction('add-product')} className="w-full flex items-center gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors text-left min-h-[48px]">
+                  <Plus className="w-5 h-5 text-primary" />
+                  <div><p className="text-sm font-medium text-foreground">Naya Product Jodo</p></div>
+                </button>
+                <button onClick={() => handleEditAction('remove-product')} className="w-full flex items-center gap-3 p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors text-left min-h-[48px]">
+                  <Trash2 className="w-5 h-5 text-destructive" />
+                  <div><p className="text-sm font-medium text-foreground">Product Hatao</p><p className="text-xs text-muted-foreground">{items.length} products</p></div>
+                </button>
+              </div>
+            ) : editField === 'customer' ? (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Customer select karein:</p>
+                <Input value={editInput} onChange={e => setEditInput(e.target.value)} placeholder="Customer ka naam likhein..." />
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {myCustomers.filter(c => !editInput || c.name.toLowerCase().includes(editInput.toLowerCase()) || c.phone.includes(editInput)).slice(0, 8).map(c => (
+                    <button key={c.id} onClick={() => { setSelectedCustomer(c); setEditField(null); setEditInput(''); }}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-muted transition-colors flex items-center justify-between text-sm">
+                      <span className="font-medium text-foreground">{c.name}</span>
+                      <span className="text-xs text-muted-foreground">{c.phone}</span>
+                    </button>
+                  ))}
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => setEditField(null)} className="min-h-[44px]">
+                  <ArrowLeft className="w-4 h-4 mr-1" /> Wapas
+                </Button>
+              </div>
+            ) : editField === 'vehicle' || editField === 'eway' ? (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">{editField === 'vehicle' ? 'Gaadi Number' : 'E-Way Bill Number'}:</p>
+                <Input value={editInput} onChange={e => setEditInput(e.target.value)}
+                  placeholder={editField === 'vehicle' ? 'DL01AB1234' : 'E-Way Bill No.'} />
+                <div className="flex gap-2">
+                  <Button onClick={applyEdit} className="flex-1 min-h-[44px]">✅ Save</Button>
+                  <Button variant="ghost" onClick={() => setEditField(null)} className="min-h-[44px]">
+                    <ArrowLeft className="w-4 h-4 mr-1" /> Wapas
+                  </Button>
+                </div>
+              </div>
+            ) : editField === 'add-product' ? (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Product add karne ke liye wapas chat par jaayein:</p>
+                <Button onClick={() => { setPanelMode('chat'); addMsg('bot', 'Kaun sa product chahiye? Naam likhein:'); setStep('add-product'); setEditField(null); }} className="w-full min-h-[44px]">
+                  ➕ Product Add Karo
+                </Button>
+                <Button variant="ghost" onClick={() => setEditField(null)} className="w-full min-h-[44px]">
+                  <ArrowLeft className="w-4 h-4 mr-1" /> Wapas
+                </Button>
+              </div>
+            ) : editField === 'remove-product' ? (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Kaun sa product hatana hai?</p>
+                {items.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Koi product nahi hai.</p>
+                ) : items.map((it, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                    <span className="text-sm text-foreground">{it.productName} × {it.quantity}</span>
+                    <Button size="sm" variant="destructive" onClick={() => removeProduct(i)} className="min-h-[36px]">
+                      <Trash2 className="w-3 h-3 mr-1" /> Hatao
+                    </Button>
+                  </div>
+                ))}
+                <Button variant="ghost" onClick={() => setEditField(null)} className="w-full min-h-[44px]">
+                  <ArrowLeft className="w-4 h-4 mr-1" /> Wapas
+                </Button>
+              </div>
+            ) : null}
+
+            {!editField && (
+              <Button variant="outline" onClick={() => setPanelMode('preview')} className="w-full min-h-[48px]">
+                ← Wapas Review Par Jao
               </Button>
             )}
-            <Button size="sm" onClick={resetChat}>📋 Nayi Invoice Banao</Button>
           </div>
+        )}
+
+        {/* ====== PANEL: DONE ====== */}
+        {panelMode === 'done' && lastCreatedInvoice && (
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="text-center space-y-2">
+              <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto">
+                <FileText className="w-8 h-8 text-emerald-600" />
+              </div>
+              <h3 className="text-lg font-bold text-foreground">✅ Invoice Ban Gayi!</h3>
+              <p className="text-sm text-muted-foreground">Invoice No: {lastCreatedInvoice.invoiceNumber}</p>
+              <p className="text-sm text-muted-foreground">Customer: {lastCreatedInvoice.customerName}</p>
+              <p className="text-xl font-bold text-foreground">₹{lastCreatedInvoice.grandTotal.toLocaleString('en-IN')}</p>
+              <p className="text-xs text-muted-foreground">
+                Status: {lastCreatedInvoice.status === 'paid' ? '🟢 Paid' : lastCreatedInvoice.status === 'partial' ? '🟡 Partial' : '🔴 Pending'}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <Button variant="outline" onClick={printInvoice} className="flex flex-col items-center gap-1 min-h-[64px] py-3">
+                <Printer className="w-5 h-5" />
+                <span className="text-[10px]">Print</span>
+              </Button>
+              <Button variant="outline" onClick={async () => {
+                const { downloadInvoicePDF } = await import('@/lib/exportUtils');
+                const firm = currentUser?.role === 'employee' ? users.find(u => u.id === currentUser.parentUserId) : currentUser;
+                downloadInvoicePDF(lastCreatedInvoice, firm);
+              }} className="flex flex-col items-center gap-1 min-h-[64px] py-3">
+                <Download className="w-5 h-5" />
+                <span className="text-[10px]">PDF</span>
+              </Button>
+              <Button variant="outline" onClick={async () => {
+                const { downloadInvoiceExcel } = await import('@/lib/exportUtils');
+                downloadInvoiceExcel(lastCreatedInvoice);
+              }} className="flex flex-col items-center gap-1 min-h-[64px] py-3">
+                <FileText className="w-5 h-5" />
+                <span className="text-[10px]">Excel</span>
+              </Button>
+            </div>
+
+            <Button variant="outline" className="w-full min-h-[44px]" onClick={() => {
+              const inv = lastCreatedInvoice;
+              const text = `Invoice: ${inv.invoiceNumber}%0ACustomer: ${inv.customerName}%0AAmount: ₹${inv.grandTotal.toLocaleString('en-IN')}%0ADate: ${inv.date}`;
+              window.open(`https://wa.me/?text=${text}`, '_blank');
+            }}>
+              <Share2 className="w-4 h-4 mr-2" /> 📱 WhatsApp Share
+            </Button>
+
+            <Button onClick={resetChat} className="w-full min-h-[48px]">
+              ➕ Nayi Invoice Banao
+            </Button>
+            <Button variant="ghost" className="w-full min-h-[44px] text-muted-foreground" onClick={resetChat}>
+              🏠 Dashboard Par Jao
+            </Button>
+          </div>
+        )}
+
+        {/* ====== PANEL: CHAT (normal chatbot flow) ====== */}
+        {panelMode === 'chat' && (
+          <>
+            {/* Chat Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {messages.map((msg, i) => (
+                <div key={i} className={`flex ${msg.from === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[80%] rounded-xl px-4 py-2.5 text-sm whitespace-pre-line ${msg.from === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'}`}>
+                    {msg.text}
+                    {msg.options && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {msg.options.map(opt => (
+                          <button key={opt} onClick={() => handleOptionClick(opt)}
+                            className="px-3 py-1.5 bg-card border rounded-lg text-xs font-medium hover:bg-muted transition-colors text-foreground">
+                            {opt}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Suggestions Dropdown */}
+            {suggestions.length > 0 && (step === 'select-customer' || step === 'add-product') && (
+              <div className="border-t bg-card px-3 py-2 space-y-1 max-h-48 overflow-y-auto">
+                <p className="text-xs text-muted-foreground font-medium mb-1">
+                  {step === 'select-customer' ? 'Customers:' : 'Products:'}
+                </p>
+                {step === 'select-customer' && (suggestions as Customer[]).map(c => (
+                  <button key={c.id} onClick={() => selectCustomer(c)}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-muted transition-colors flex items-center justify-between text-sm">
+                    <span className="font-medium text-foreground">{c.name}</span>
+                    <span className="text-xs text-muted-foreground">{c.phone}{c.gstNumber ? ` • ${c.gstNumber}` : ''}</span>
+                  </button>
+                ))}
+                {step === 'add-product' && (suggestions as Product[]).map(p => (
+                  <button key={p.id} onClick={() => selectProduct(p)}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-muted transition-colors flex items-center justify-between text-sm">
+                    <span className="font-medium text-foreground">{p.name}</span>
+                    <span className="text-xs text-muted-foreground">₹{p.price} • Stock: {p.stock}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Input */}
+            {showInput && (
+              <div className="border-t p-3 flex gap-2">
+                <Input ref={inputRef} value={input} onChange={e => handleInputChange(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleSend(); }} placeholder={getPlaceholder()} className="flex-1" />
+                <Button size="sm" onClick={handleSend}><Send className="w-4 h-4" /></Button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
