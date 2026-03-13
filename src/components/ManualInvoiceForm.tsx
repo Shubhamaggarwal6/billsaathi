@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ArrowLeft, Plus, Trash2, Search } from 'lucide-react';
-import type { Customer, Product, InvoiceItem, Invoice, Payment, DebitNote } from '@/lib/types';
+import type { Customer, Product, InvoiceItem, Invoice, Payment } from '@/lib/types';
 
 interface Props {
   onClose: () => void;
