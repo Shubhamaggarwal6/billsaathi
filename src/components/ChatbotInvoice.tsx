@@ -1268,6 +1268,10 @@ export default function ChatbotInvoice() {
               <p className="text-sm text-muted-foreground">Customer: {lastCreatedInvoice.customerName}</p>
               <p className="text-xl font-bold text-foreground">₹{lastCreatedInvoice.grandTotal.toLocaleString('en-IN')}</p>
               {selectedPaymentMode && <p className="text-sm text-muted-foreground">Payment: {selectedPaymentMode} ✓</p>}
+              {paymentRef && <p className="text-xs text-muted-foreground">Ref: {paymentRef}</p>}
+              {donePaymentStatus === 'partial' && (
+                <p className="text-xs text-muted-foreground">Received: ₹{(lastCreatedInvoice.paidAmount || Number(partialAmountInput) || 0).toLocaleString('en-IN')}</p>
+              )}
             </div>
 
             {/* Action buttons */}
