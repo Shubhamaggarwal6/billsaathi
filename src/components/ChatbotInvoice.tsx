@@ -1245,7 +1245,7 @@ export default function ChatbotInvoice() {
                 <Button
                   variant={donePaymentStatus === 'paid' ? 'default' : 'outline'}
                   className={`min-h-[44px] text-xs ${donePaymentStatus === 'paid' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}
-                  onClick={() => { setDonePaymentStatus('paid'); setPaymentFinalized(false); setCreatedDebitNote(null); }}
+                  onClick={() => { setDonePaymentStatus('paid'); setPaymentFinalized(false); }}
                 >✅ Paid</Button>
                 <Button
                   variant={donePaymentStatus === 'partial' ? 'default' : 'outline'}
