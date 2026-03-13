@@ -1296,26 +1296,6 @@ export default function ChatbotInvoice() {
               )}
             </div>
 
-            {/* Show created debit note info after finalization */}
-            {paymentFinalized && createdDebitNote && (
-              <div className="glass-card p-3 space-y-2">
-                <p className="text-sm font-semibold text-foreground">
-                  {donePaymentStatus === 'partial' ? '⚡' : '⏳'} Debit Note Created
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {createdDebitNote.debitNoteNumber} • {donePaymentStatus === 'partial' ? `Balance: ₹${createdDebitNote.total.toLocaleString('en-IN')}` : `₹${createdDebitNote.total.toLocaleString('en-IN')} Pending`}
-                </p>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={async () => {
-                    await downloadDocPDF(debitNoteToDocData(createdDebitNote), { type: 'debit_note', firm });
-                  }} className="min-h-[36px]">📄 PDF</Button>
-                  <Button size="sm" variant="outline" onClick={() => {
-                    printDoc(debitNoteToDocData(createdDebitNote), { type: 'debit_note', firm });
-                  }} className="min-h-[36px]">🖨️ Print</Button>
-                </div>
-              </div>
-            )}
-
             <div className="flex gap-2">
               <Button onClick={handleNewInvoice} className="flex-1 min-h-[48px]">➕ New Invoice</Button>
               <Button variant="ghost" className="flex-1 min-h-[44px] text-muted-foreground" onClick={handleDashboard}>🏠 Dashboard</Button>
