@@ -90,6 +90,7 @@ export default function InvoiceDetailModal({ invoice: inv, onClose, readOnly, on
               {inv.paymentReference && <span><strong>Ref:</strong> {inv.paymentReference}</span>}
               {(inv.paidAmount || 0) > 0 && <span><strong>Received:</strong> ₹{(inv.paidAmount || 0).toLocaleString('en-IN')}</span>}
               {(inv.grandTotal - (inv.paidAmount || 0)) > 0 && <span><strong>Balance:</strong> ₹{Math.max(0, inv.grandTotal - (inv.paidAmount || 0)).toLocaleString('en-IN')}</span>}
+              <span>{t('reverseCharge')}</span>
             </div>
 
             {/* Items Table */}
