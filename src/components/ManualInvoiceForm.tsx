@@ -130,23 +130,6 @@ export default function ManualInvoiceForm({ onClose }: Props) {
       setPayments(prev => [...prev, payment]);
     }
 
-    // Auto debit note for partial/pending
-    if (paymentStatus === 'partial' || paymentStatus === 'pending') {
-      const balance = gt - paidAmt;
-      const year = new Date().getFullYear();
-      const dnNumber = `DN-${year}-${String(debitNotes.length + 1).padStart(4, '0')}`;
-      const dn: DebitNote = {
-        id: crypto.randomUUID(), userId, debitNoteNumber: dnNumber, date: invDate,
-        originalInvoiceId: invoice.id, originalInvoiceNumber: invNum,
-        customerId: selectedCustomer.id, customerName: selectedCustomer.name,
-        reason: paymentStatus === 'partial' ? 'Partial payment — balance due' : 'Payment pending',
-        items: [], subtotal: balance, cgst: 0, sgst: 0, igst: 0, total: balance,
-        isInterState: false, status: 'active',
-        createdBy: { id: currentUser!.id, name: currentUser!.firmName || currentUser!.username, role: currentUser!.role, timestamp: new Date().toISOString() },
-      };
-      setDebitNotes(prev => [...prev, dn]);
-    }
-
     onClose();
   };
 

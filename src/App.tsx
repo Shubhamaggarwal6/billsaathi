@@ -28,7 +28,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <OfflineBanner />
+        
         <AppInner />
       </TooltipProvider>
     </LanguageProvider>
