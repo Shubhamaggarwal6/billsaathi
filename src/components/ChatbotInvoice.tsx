@@ -855,23 +855,40 @@ export default function ChatbotInvoice() {
   const finalizeInvoicePayment = (status: 'paid' | 'partial' | 'pending', partialAmt: number, mode: string, ref: string) => {
     const inv = lastCreatedInvoice;
     if (!inv) return;
-    
-    if (status === 'paid') {
-      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'paid', paidAmount: inv.grandTotal } : i));
+
+    const normalizedMode = mode === 'Bank Transfer' ? 'NEFT' : mode;
+    const receivedAmount = status === 'paid' ? inv.grandTotal : status === 'partial' ? partialAmt : 0;
+
+    setInvoices(prev => prev.map(i => {
+      if (i.id !== inv.id) return i;
+      return {
+        ...i,
+        status,
+        paidAmount: receivedAmount,
+        paymentMode: normalizedMode,
+        paymentReference: ref,
+        receivedAmount,
+      };
+    }));
+
+    if ((status === 'paid' || status === 'partial') && receivedAmount > 0) {
       const payment: Payment = {
-        id: crypto.randomUUID(), userId, customerId: inv.customerId, invoiceId: inv.id,
-        amount: inv.grandTotal, date: new Date().toISOString().split('T')[0],
-        mode: (mode as Payment['mode']) || 'Cash', note: `${inv.invoiceNumber}${ref ? ' Ref: ' + ref : ''}`,
+        id: crypto.randomUUID(),
+        userId,
+        customerId: inv.customerId,
+        invoiceId: inv.id,
+        amount: receivedAmount,
+        date: new Date().toISOString().split('T')[0],
+        mode: (normalizedMode as Payment['mode']) || 'Cash',
+        note: `${status === 'partial' ? 'Partial' : 'Full'} payment for ${inv.invoiceNumber}${ref ? ` Ref: ${ref}` : ''}`,
         timestamp: new Date().toISOString(),
       };
       setPayments(prev => [...prev, payment]);
-      setDonePaymentStatus('paid');
-    } else {
-      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'pending', paidAmount: 0 } : i));
-      setDonePaymentStatus('pending');
     }
-    
-    setSelectedPaymentMode(mode);
+
+    setDonePaymentStatus(status);
+    if (status === 'partial') setPartialAmountInput(String(receivedAmount));
+    setSelectedPaymentMode(normalizedMode);
     setPaymentRef(ref);
     setPaymentFinalized(true);
     setPanelMode('done');
@@ -882,25 +899,21 @@ export default function ChatbotInvoice() {
     if (paymentFinalized) return;
     const inv = lastCreatedInvoice;
     if (!inv) return;
-    setPaymentFinalized(true);
 
     if (donePaymentStatus === 'paid') {
-      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'paid', paidAmount: inv.grandTotal } : i));
-    } else if (donePaymentStatus === 'partial') {
+      finalizeInvoicePayment('paid', 0, selectedPaymentMode || 'Cash', paymentRef);
+      return;
+    }
+
+    if (donePaymentStatus === 'partial') {
       const amt = Number(partialAmountInput) || 0;
       if (amt > 0 && amt < inv.grandTotal) {
-        setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'partial', paidAmount: amt } : i));
-        const payment: Payment = {
-          id: crypto.randomUUID(), userId, customerId: inv.customerId, invoiceId: inv.id,
-          amount: amt, date: new Date().toISOString().split('T')[0],
-          mode: (selectedPaymentMode as Payment['mode']) || 'Cash',
-          note: `Partial payment for ${inv.invoiceNumber}`, timestamp: new Date().toISOString(),
-        };
-        setPayments(prev => [...prev, payment]);
+        finalizeInvoicePayment('partial', amt, selectedPaymentMode || 'Cash', paymentRef);
       }
-    } else {
-      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'pending', paidAmount: 0 } : i));
+      return;
     }
+
+    finalizeInvoicePayment('pending', 0, selectedPaymentMode || 'Credit', paymentRef);
   };
 
   const handleNewInvoice = () => {
