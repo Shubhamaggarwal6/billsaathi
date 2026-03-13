@@ -1255,7 +1255,7 @@ export default function ChatbotInvoice() {
                 <Button
                   variant={donePaymentStatus === 'pending' ? 'default' : 'outline'}
                   className={`min-h-[44px] text-xs ${donePaymentStatus === 'pending' ? 'bg-red-600 hover:bg-red-700' : ''}`}
-                  onClick={() => { setDonePaymentStatus('pending'); setPaymentFinalized(false); setCreatedDebitNote(null); }}
+                  onClick={() => { setDonePaymentStatus('pending'); setPaymentFinalized(false); }}
                 >⏳ Not Now</Button>
               </div>
               
