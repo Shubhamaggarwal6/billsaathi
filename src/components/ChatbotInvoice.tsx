@@ -74,7 +74,7 @@ export default function ChatbotInvoice() {
   const [donePaymentStatus, setDonePaymentStatus] = useState<'paid' | 'partial' | 'pending'>('paid');
   const [partialAmountInput, setPartialAmountInput] = useState('');
   const [paymentFinalized, setPaymentFinalized] = useState(false);
-  const [createdDebitNote, setCreatedDebitNote] = useState<DebitNote | null>(null);
+  
   
   // CN flow state
   const [cnCustomer, setCnCustomer] = useState<Customer | null>(null);
