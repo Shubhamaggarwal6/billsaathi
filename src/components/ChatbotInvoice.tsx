@@ -884,7 +884,7 @@ export default function ChatbotInvoice() {
     setLastCreatedInvoice(null); setDocType('invoice');
     setSelectedPaymentMode(''); setPaymentRef('');
     setDonePaymentStatus('paid'); setPartialAmountInput('');
-    setPaymentFinalized(false); setCreatedDebitNote(null);
+    setPaymentFinalized(false);
     setCnCustomer(null); setCnInvoice(null);
     setCnReturnType(null); setCnProductsQueue([]); setCnProductsDone([]);
     setCnCurrentProductIndex(0); setCnMoreProductsAsked(false);
