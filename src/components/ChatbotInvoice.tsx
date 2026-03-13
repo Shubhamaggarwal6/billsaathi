@@ -855,10 +855,6 @@ export default function ChatbotInvoice() {
           note: `Partial payment for ${inv.invoiceNumber}`, timestamp: new Date().toISOString(),
         };
         setPayments(prev => [...prev, payment]);
-        const balance = inv.grandTotal - amt;
-        const dn = createSilentDebitNote(inv, balance, 'Partial payment — balance due');
-        setCreatedDebitNote(dn);
-        toast.success(`✅ ${dn.debitNoteNumber} ban gayi`);
       }
     } else {
       setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'pending', paidAmount: 0 } : i));
