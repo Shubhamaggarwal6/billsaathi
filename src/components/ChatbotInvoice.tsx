@@ -17,8 +17,8 @@ type ChatStep =
   | 'vehicle' | 'add-product' | 'product-selling-price' | 'product-discount' | 'product-quantity'
   | 'new-product-name' | 'new-product-hsn' | 'new-product-price' | 'new-product-gst' | 'new-product-unit'
   | 'more-products'
-  // NEW: Payment mode flow
-  | 'payment-mode' | 'payment-ref'
+  // Payment flow
+  | 'payment-mode' | 'payment-status' | 'payment-partial-amount' | 'payment-ref'
   // CN flow steps (strict state machine)
   | 'cn-select-customer' | 'cn-confirm-customer' | 'cn-select-invoice'
   | 'cn-return-type' | 'cn-select-products'
@@ -66,10 +66,12 @@ export default function ChatbotInvoice() {
   const [initialized, setInitialized] = useState(false);
   const [docType, setDocType] = useState<'invoice' | 'credit-note'>('invoice');
   
-  // Payment mode on done screen
+  // Payment state
   const [selectedPaymentMode, setSelectedPaymentMode] = useState<string>('');
   const [paymentRef, setPaymentRef] = useState('');
-  
+  const [pendingPaymentStatus, setPendingPaymentStatus] = useState<'paid' | 'partial'>('paid');
+  const [pendingPartialAmount, setPendingPartialAmount] = useState(0);
+
   // Payment status on done screen — UI only until finalized
   const [donePaymentStatus, setDonePaymentStatus] = useState<'paid' | 'partial' | 'pending'>('paid');
   const [partialAmountInput, setPartialAmountInput] = useState('');
@@ -243,21 +245,42 @@ export default function ChatbotInvoice() {
       return;
     }
     
-    // Payment mode selection (6 options)
+    // Payment mode selection
     if (step === 'payment-mode') {
-      const modeMap: Record<string, string> = {
-        '💵 Cash': 'Cash', '📱 UPI': 'UPI', '🏦 NEFT': 'NEFT',
-        '🏦 RTGS': 'RTGS', '🧾 Cheque': 'Cheque', '⏳ Baad Mein / Credit': 'Credit',
+      const modeByKey: Record<string, string> = {
+        payCash: 'Cash',
+        payUpi: 'UPI',
+        payNeft: 'NEFT',
+        payRtgs: 'RTGS',
+        payCheque: 'Cheque',
+        payCredit: 'Credit',
       };
-      const mode = modeMap[opt] || opt;
+      const mode = modeByKey[optKey || ''] || opt.replace(/^[^A-Za-z]+\s*/, '').trim();
       setSelectedPaymentMode(mode);
+
       if (mode === 'Credit') {
-        // Directly finalize as pending
-        setDonePaymentStatus('pending');
         finalizeInvoicePayment('pending', 0, 'Credit', '');
       } else {
-        addMsg('bot', 'Reference number? (Enter = skip)');
-        setStep('payment-ref');
+        addMsg('bot', 'Payment status kya hai?', ['✅ Full Paid', '⚡ Partial Paid'], ['payFull', 'payPartial']);
+        setStep('payment-status');
+      }
+      return;
+    }
+
+    if (step === 'payment-status') {
+      if (optKey === 'payPartial') {
+        setPendingPaymentStatus('partial');
+        addMsg('bot', 'Kitna payment receive hua?');
+        setStep('payment-partial-amount');
+      } else {
+        setPendingPaymentStatus('paid');
+        setPendingPartialAmount(0);
+        if (selectedPaymentMode === 'Cash') {
+          finalizeInvoicePayment('paid', 0, 'Cash', '');
+        } else {
+          addMsg('bot', 'Reference number? (Enter = skip)');
+          setStep('payment-ref');
+        }
       }
       return;
     }
@@ -473,12 +496,29 @@ export default function ChatbotInvoice() {
         break;
       }
       
+      // Payment partial amount
+      case 'payment-partial-amount': {
+        const inv = lastCreatedInvoice;
+        if (!inv) return;
+        const amt = Number(text);
+        if (isNaN(amt) || amt <= 0 || amt >= inv.grandTotal) {
+          addMsg('bot', `Partial amount grand total se kam hona chahiye (max ₹${(inv.grandTotal - 1).toLocaleString('en-IN')})`);
+          return;
+        }
+        setPendingPartialAmount(amt);
+        if (selectedPaymentMode === 'Cash') {
+          finalizeInvoicePayment('partial', amt, 'Cash', '');
+        } else {
+          addMsg('bot', 'Reference number? (Enter = skip)');
+          setStep('payment-ref');
+        }
+        break;
+      }
+
       // Payment reference number
       case 'payment-ref': {
         setPaymentRef(text);
-        // Now finalize with paid status
-        setDonePaymentStatus('paid');
-        finalizeInvoicePayment('paid', 0, selectedPaymentMode, text);
+        finalizeInvoicePayment(pendingPaymentStatus, pendingPartialAmount, selectedPaymentMode, text);
         break;
       }
 
@@ -789,6 +829,7 @@ export default function ChatbotInvoice() {
       totalAmount, totalGst, totalCgst, totalSgst, totalIgst, grandTotal, roundOff,
       isInterState, placeOfSupply: buyerState?.name || '',
       status: 'pending', paidAmount: 0,
+      paymentMode: '', paymentReference: '', receivedAmount: 0,
       createdBy: { id: currentUser!.id, name: currentUser!.firmName || currentUser!.username, role: currentUser!.role, timestamp: new Date().toISOString() },
     };
     
@@ -804,32 +845,50 @@ export default function ChatbotInvoice() {
     
     // Ask payment mode
     addMsg('bot', 'Payment kaise liya?',
-      ['💵 Cash', '📱 UPI', '🏦 NEFT', '🏦 RTGS', '🧾 Cheque', '⏳ Baad Mein / Credit']);
+      ['💵 Cash', '📱 UPI', '🏦 NEFT', '🏦 RTGS', '🧾 Cheque', '⏳ Baad Mein / Credit'],
+      ['payCash', 'payUpi', 'payNeft', 'payRtgs', 'payCheque', 'payCredit']);
     setStep('payment-mode');
-    // Stay in chat panel for payment mode selection
+    setPanelMode('chat');
   };
 
   // Finalize invoice payment and move to done screen
   const finalizeInvoicePayment = (status: 'paid' | 'partial' | 'pending', partialAmt: number, mode: string, ref: string) => {
     const inv = lastCreatedInvoice;
     if (!inv) return;
-    
-    if (status === 'paid') {
-      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'paid', paidAmount: inv.grandTotal } : i));
+
+    const normalizedMode = mode === 'Bank Transfer' ? 'NEFT' : mode;
+    const receivedAmount = status === 'paid' ? inv.grandTotal : status === 'partial' ? partialAmt : 0;
+
+    setInvoices(prev => prev.map(i => {
+      if (i.id !== inv.id) return i;
+      return {
+        ...i,
+        status,
+        paidAmount: receivedAmount,
+        paymentMode: normalizedMode,
+        paymentReference: ref,
+        receivedAmount,
+      };
+    }));
+
+    if ((status === 'paid' || status === 'partial') && receivedAmount > 0) {
       const payment: Payment = {
-        id: crypto.randomUUID(), userId, customerId: inv.customerId, invoiceId: inv.id,
-        amount: inv.grandTotal, date: new Date().toISOString().split('T')[0],
-        mode: (mode as Payment['mode']) || 'Cash', note: `${inv.invoiceNumber}${ref ? ' Ref: ' + ref : ''}`,
+        id: crypto.randomUUID(),
+        userId,
+        customerId: inv.customerId,
+        invoiceId: inv.id,
+        amount: receivedAmount,
+        date: new Date().toISOString().split('T')[0],
+        mode: (normalizedMode as Payment['mode']) || 'Cash',
+        note: `${status === 'partial' ? 'Partial' : 'Full'} payment for ${inv.invoiceNumber}${ref ? ` Ref: ${ref}` : ''}`,
         timestamp: new Date().toISOString(),
       };
       setPayments(prev => [...prev, payment]);
-      setDonePaymentStatus('paid');
-    } else {
-      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'pending', paidAmount: 0 } : i));
-      setDonePaymentStatus('pending');
     }
-    
-    setSelectedPaymentMode(mode);
+
+    setDonePaymentStatus(status);
+    if (status === 'partial') setPartialAmountInput(String(receivedAmount));
+    setSelectedPaymentMode(normalizedMode);
     setPaymentRef(ref);
     setPaymentFinalized(true);
     setPanelMode('done');
@@ -840,25 +899,21 @@ export default function ChatbotInvoice() {
     if (paymentFinalized) return;
     const inv = lastCreatedInvoice;
     if (!inv) return;
-    setPaymentFinalized(true);
 
     if (donePaymentStatus === 'paid') {
-      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'paid', paidAmount: inv.grandTotal } : i));
-    } else if (donePaymentStatus === 'partial') {
+      finalizeInvoicePayment('paid', 0, selectedPaymentMode || 'Cash', paymentRef);
+      return;
+    }
+
+    if (donePaymentStatus === 'partial') {
       const amt = Number(partialAmountInput) || 0;
       if (amt > 0 && amt < inv.grandTotal) {
-        setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'partial', paidAmount: amt } : i));
-        const payment: Payment = {
-          id: crypto.randomUUID(), userId, customerId: inv.customerId, invoiceId: inv.id,
-          amount: amt, date: new Date().toISOString().split('T')[0],
-          mode: (selectedPaymentMode as Payment['mode']) || 'Cash',
-          note: `Partial payment for ${inv.invoiceNumber}`, timestamp: new Date().toISOString(),
-        };
-        setPayments(prev => [...prev, payment]);
+        finalizeInvoicePayment('partial', amt, selectedPaymentMode || 'Cash', paymentRef);
       }
-    } else {
-      setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'pending', paidAmount: 0 } : i));
+      return;
     }
+
+    finalizeInvoicePayment('pending', 0, selectedPaymentMode || 'Credit', paymentRef);
   };
 
   const handleNewInvoice = () => {
@@ -883,6 +938,7 @@ export default function ChatbotInvoice() {
     setSuggestions([]); setInvoiceSuggestions([]); setEditField(null); setEditInput('');
     setLastCreatedInvoice(null); setDocType('invoice');
     setSelectedPaymentMode(''); setPaymentRef('');
+    setPendingPaymentStatus('paid'); setPendingPartialAmount(0);
     setDonePaymentStatus('paid'); setPartialAmountInput('');
     setPaymentFinalized(false);
     setCnCustomer(null); setCnInvoice(null);
@@ -924,10 +980,10 @@ export default function ChatbotInvoice() {
       case 'new-product-price': return t('phPrice');
       case 'new-product-gst': return t('phGSTRate');
       case 'new-product-unit': return t('phUnit');
+      case 'payment-partial-amount': return 'Received amount ₹';
       case 'payment-ref': return 'Reference no. (Enter = skip)';
       case 'cn-select-invoice': return 'Invoice no. ya Enter to skip';
       case 'cn-select-products': return 'e.g. 1,2,3';
-      case 'cn-product-qty': case 'cn-manual-product-qty': return 'Quantity (Enter = full)';
       case 'cn-product-rate': case 'cn-manual-product-rate': return 'Rate (Enter = original)';
       case 'cn-amount': return 'Amount ₹';
       case 'cn-misc-amount': case 'cn-extra-misc': return 'Amount ₹ (Enter = skip)';
@@ -938,7 +994,7 @@ export default function ChatbotInvoice() {
     }
   };
 
-  const noInputSteps: ChatStep[] = ['confirm-customer', 'more-products', 'payment-mode', 'cn-return-type', 'cn-more-products', 'ask-credit-note', 'cn-amount-gst'];
+  const noInputSteps: ChatStep[] = ['confirm-customer', 'more-products', 'payment-mode', 'payment-status', 'cn-return-type', 'cn-more-products', 'ask-credit-note', 'cn-amount-gst'];
   const showInput = panelMode === 'chat' && startChoice && !noInputSteps.includes(step);
 
   const totalAmount = items.reduce((s, i) => s + i.price * i.quantity, 0);
@@ -1212,6 +1268,10 @@ export default function ChatbotInvoice() {
               <p className="text-sm text-muted-foreground">Customer: {lastCreatedInvoice.customerName}</p>
               <p className="text-xl font-bold text-foreground">₹{lastCreatedInvoice.grandTotal.toLocaleString('en-IN')}</p>
               {selectedPaymentMode && <p className="text-sm text-muted-foreground">Payment: {selectedPaymentMode} ✓</p>}
+              {paymentRef && <p className="text-xs text-muted-foreground">Ref: {paymentRef}</p>}
+              {donePaymentStatus === 'partial' && (
+                <p className="text-xs text-muted-foreground">Received: ₹{(lastCreatedInvoice.paidAmount || Number(partialAmountInput) || 0).toLocaleString('en-IN')}</p>
+              )}
             </div>
 
             {/* Action buttons */}
@@ -1267,12 +1327,12 @@ export default function ChatbotInvoice() {
                     onChange={e => setPartialAmountInput(e.target.value)}
                     placeholder="Kitna payment mila?"
                   />
-                  <p className="text-xs text-muted-foreground text-center">⚡ Debit note auto-banega balance ke liye</p>
+                  <p className="text-xs text-muted-foreground text-center">Balance: ₹{Math.max(0, lastCreatedInvoice.grandTotal - (Number(partialAmountInput) || lastCreatedInvoice.paidAmount || 0)).toLocaleString('en-IN')}</p>
                 </div>
               )}
 
               {donePaymentStatus === 'pending' && (
-                <p className="text-xs text-muted-foreground text-center">⏳ Debit note auto-banega full amount ke liye</p>
+                <p className="text-xs text-muted-foreground text-center">No payment received yet</p>
               )}
 
               {donePaymentStatus === 'paid' && (
