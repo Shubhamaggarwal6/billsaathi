@@ -66,10 +66,12 @@ export default function ChatbotInvoice() {
   const [initialized, setInitialized] = useState(false);
   const [docType, setDocType] = useState<'invoice' | 'credit-note'>('invoice');
   
-  // Payment mode on done screen
+  // Payment state
   const [selectedPaymentMode, setSelectedPaymentMode] = useState<string>('');
   const [paymentRef, setPaymentRef] = useState('');
-  
+  const [pendingPaymentStatus, setPendingPaymentStatus] = useState<'paid' | 'partial'>('paid');
+  const [pendingPartialAmount, setPendingPartialAmount] = useState(0);
+
   // Payment status on done screen — UI only until finalized
   const [donePaymentStatus, setDonePaymentStatus] = useState<'paid' | 'partial' | 'pending'>('paid');
   const [partialAmountInput, setPartialAmountInput] = useState('');
