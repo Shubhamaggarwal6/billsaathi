@@ -245,21 +245,42 @@ export default function ChatbotInvoice() {
       return;
     }
     
-    // Payment mode selection (6 options)
+    // Payment mode selection
     if (step === 'payment-mode') {
-      const modeMap: Record<string, string> = {
-        '💵 Cash': 'Cash', '📱 UPI': 'UPI', '🏦 NEFT': 'NEFT',
-        '🏦 RTGS': 'RTGS', '🧾 Cheque': 'Cheque', '⏳ Baad Mein / Credit': 'Credit',
+      const modeByKey: Record<string, string> = {
+        payCash: 'Cash',
+        payUpi: 'UPI',
+        payNeft: 'NEFT',
+        payRtgs: 'RTGS',
+        payCheque: 'Cheque',
+        payCredit: 'Credit',
       };
-      const mode = modeMap[opt] || opt;
+      const mode = modeByKey[optKey || ''] || opt.replace(/^[^A-Za-z]+\s*/, '').trim();
       setSelectedPaymentMode(mode);
+
       if (mode === 'Credit') {
-        // Directly finalize as pending
-        setDonePaymentStatus('pending');
         finalizeInvoicePayment('pending', 0, 'Credit', '');
       } else {
-        addMsg('bot', 'Reference number? (Enter = skip)');
-        setStep('payment-ref');
+        addMsg('bot', 'Payment status kya hai?', ['✅ Full Paid', '⚡ Partial Paid'], ['payFull', 'payPartial']);
+        setStep('payment-status');
+      }
+      return;
+    }
+
+    if (step === 'payment-status') {
+      if (optKey === 'payPartial') {
+        setPendingPaymentStatus('partial');
+        addMsg('bot', 'Kitna payment receive hua?');
+        setStep('payment-partial-amount');
+      } else {
+        setPendingPaymentStatus('paid');
+        setPendingPartialAmount(0);
+        if (selectedPaymentMode === 'Cash') {
+          finalizeInvoicePayment('paid', 0, 'Cash', '');
+        } else {
+          addMsg('bot', 'Reference number? (Enter = skip)');
+          setStep('payment-ref');
+        }
       }
       return;
     }
