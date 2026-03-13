@@ -761,20 +761,6 @@ export default function ChatbotInvoice() {
     setPanelMode('cn-done');
   };
 
-  const createSilentDebitNote = (inv: Invoice, balanceDue: number, reason: string) => {
-    const dnNumber = generateNoteNumber('DN', debitNotes);
-    const dn: DebitNote = {
-      id: crypto.randomUUID(), userId, debitNoteNumber: dnNumber,
-      date: new Date().toISOString().split('T')[0],
-      originalInvoiceId: inv.id, originalInvoiceNumber: inv.invoiceNumber,
-      customerId: inv.customerId, customerName: inv.customerName,
-      reason, items: [], subtotal: balanceDue, cgst: 0, sgst: 0, igst: 0,
-      total: balanceDue, isInterState: false, status: 'active',
-      createdBy: { id: currentUser!.id, name: currentUser!.firmName || currentUser!.username, role: currentUser!.role, timestamp: new Date().toISOString() },
-    };
-    setDebitNotes(prev => [...prev, dn]);
-    return dn;
-  };
 
   // ---- Invoice creation ----
   const createInvoice = () => {
