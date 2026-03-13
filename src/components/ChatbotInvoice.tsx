@@ -826,10 +826,7 @@ export default function ChatbotInvoice() {
       setDonePaymentStatus('paid');
     } else {
       setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'pending', paidAmount: 0 } : i));
-      const dn = createSilentDebitNote(inv, inv.grandTotal, 'Payment pending');
-      setCreatedDebitNote(dn);
       setDonePaymentStatus('pending');
-      toast.success(`✅ ${dn.debitNoteNumber} ban gayi`);
     }
     
     setSelectedPaymentMode(mode);
