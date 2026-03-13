@@ -58,6 +58,9 @@ export interface UnifiedDocData {
   placeOfSupply: string;
   status: string;
   paidAmount?: number;
+  paymentMode?: string;
+  paymentReference?: string;
+  receivedAmount?: number;
   reason?: string;
 }
 

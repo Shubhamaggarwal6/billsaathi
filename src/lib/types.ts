@@ -155,6 +155,9 @@ export interface Invoice {
   placeOfSupply: string;
   status: 'paid' | 'pending' | 'partial';
   paidAmount: number;
+  paymentMode?: 'Cash' | 'UPI' | 'NEFT' | 'Bank Transfer' | 'RTGS' | 'Cheque' | 'Credit';
+  paymentReference?: string;
+  receivedAmount?: number;
   createdBy: InvoiceCreator;
 }
 
