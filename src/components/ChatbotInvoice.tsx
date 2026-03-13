@@ -940,6 +940,7 @@ export default function ChatbotInvoice() {
     setSelectedPaymentMode(''); setPaymentRef('');
     setPendingPaymentStatus('paid'); setPendingPartialAmount(0);
     setDonePaymentStatus('paid'); setPartialAmountInput('');
+    setPaymentFinalized(false);
     setCnCustomer(null); setCnInvoice(null);
     setCnReturnType(null); setCnProductsQueue([]); setCnProductsDone([]);
     setCnCurrentProductIndex(0); setCnMoreProductsAsked(false);
