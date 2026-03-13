@@ -17,8 +17,8 @@ type ChatStep =
   | 'vehicle' | 'add-product' | 'product-selling-price' | 'product-discount' | 'product-quantity'
   | 'new-product-name' | 'new-product-hsn' | 'new-product-price' | 'new-product-gst' | 'new-product-unit'
   | 'more-products'
-  // NEW: Payment mode flow
-  | 'payment-mode' | 'payment-ref'
+  // Payment flow
+  | 'payment-mode' | 'payment-status' | 'payment-partial-amount' | 'payment-ref'
   // CN flow steps (strict state machine)
   | 'cn-select-customer' | 'cn-confirm-customer' | 'cn-select-invoice'
   | 'cn-return-type' | 'cn-select-products'
