@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppProvider } from "@/contexts/AppContext";
 import { LanguageProvider, useLanguage } from "@/contexts/LanguageContext";
 import MobileInstallBanner from "@/components/MobileInstallBanner";
-import OfflineBanner from "@/components/OfflineBanner";
+
 import LanguageSelection from "@/components/LanguageSelection";
 import Index from "./pages/Index";
 
