@@ -496,12 +496,29 @@ export default function ChatbotInvoice() {
         break;
       }
       
+      // Payment partial amount
+      case 'payment-partial-amount': {
+        const inv = lastCreatedInvoice;
+        if (!inv) return;
+        const amt = Number(text);
+        if (isNaN(amt) || amt <= 0 || amt >= inv.grandTotal) {
+          addMsg('bot', `Partial amount grand total se kam hona chahiye (max ₹${(inv.grandTotal - 1).toLocaleString('en-IN')})`);
+          return;
+        }
+        setPendingPartialAmount(amt);
+        if (selectedPaymentMode === 'Cash') {
+          finalizeInvoicePayment('partial', amt, 'Cash', '');
+        } else {
+          addMsg('bot', 'Reference number? (Enter = skip)');
+          setStep('payment-ref');
+        }
+        break;
+      }
+
       // Payment reference number
       case 'payment-ref': {
         setPaymentRef(text);
-        // Now finalize with paid status
-        setDonePaymentStatus('paid');
-        finalizeInvoicePayment('paid', 0, selectedPaymentMode, text);
+        finalizeInvoicePayment(pendingPaymentStatus, pendingPartialAmount, selectedPaymentMode, text);
         break;
       }
 
