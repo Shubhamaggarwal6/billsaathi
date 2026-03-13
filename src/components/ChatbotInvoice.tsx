@@ -938,8 +938,8 @@ export default function ChatbotInvoice() {
     setSuggestions([]); setInvoiceSuggestions([]); setEditField(null); setEditInput('');
     setLastCreatedInvoice(null); setDocType('invoice');
     setSelectedPaymentMode(''); setPaymentRef('');
+    setPendingPaymentStatus('paid'); setPendingPartialAmount(0);
     setDonePaymentStatus('paid'); setPartialAmountInput('');
-    setPaymentFinalized(false);
     setCnCustomer(null); setCnInvoice(null);
     setCnReturnType(null); setCnProductsQueue([]); setCnProductsDone([]);
     setCnCurrentProductIndex(0); setCnMoreProductsAsked(false);
