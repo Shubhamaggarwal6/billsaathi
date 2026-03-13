@@ -177,6 +177,11 @@ export function generateInvoiceHTML(doc: UnifiedDocData, opts: RenderOptions): s
             ${doc.placeOfSupply ? `<tr><td>Place of Supply:</td><td><strong>${doc.placeOfSupply}</strong></td></tr>` : ''}
             ${doc.vehicleNumber ? `<tr><td>Vehicle No:</td><td><strong>${doc.vehicleNumber}</strong></td></tr>` : ''}
             ${doc.ewayBillNumber ? `<tr><td>E-Way Bill:</td><td><strong>${doc.ewayBillNumber}</strong></td></tr>` : ''}
+            ${doc.paymentMode ? `<tr><td>Payment Mode:</td><td><strong>${doc.paymentMode}</strong></td></tr>` : ''}
+            ${doc.paymentReference ? `<tr><td>Reference:</td><td><strong>${doc.paymentReference}</strong></td></tr>` : ''}
+            ${doc.status ? `<tr><td>Status:</td><td><strong>${doc.status.toUpperCase()}</strong></td></tr>` : ''}
+            ${(doc.paidAmount || 0) > 0 ? `<tr><td>Received:</td><td><strong>₹${(doc.paidAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td></tr>` : ''}
+            ${(doc.grandTotal - (doc.paidAmount || 0)) > 0 ? `<tr><td>Balance:</td><td><strong>₹${Math.max(0, doc.grandTotal - (doc.paidAmount || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td></tr>` : ''}
           </table>
         </div>
       </div>

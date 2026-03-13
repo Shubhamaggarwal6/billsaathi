@@ -86,7 +86,10 @@ export default function InvoiceDetailModal({ invoice: inv, onClose, readOnly, on
               <span><strong>{t('placeOfSupply')}:</strong> {inv.placeOfSupply || ''}</span>
               {inv.vehicleNumber && <span><strong>{t('vehicle')}:</strong> {inv.vehicleNumber}</span>}
               {inv.ewayBillNumber && <span><strong>{t('ewayBill')}:</strong> {inv.ewayBillNumber}</span>}
-              <span>{t('reverseCharge')}</span>
+              {inv.paymentMode && <span><strong>Payment:</strong> {inv.paymentMode}</span>}
+              {inv.paymentReference && <span><strong>Ref:</strong> {inv.paymentReference}</span>}
+              {(inv.paidAmount || 0) > 0 && <span><strong>Received:</strong> ₹{(inv.paidAmount || 0).toLocaleString('en-IN')}</span>}
+              {(inv.grandTotal - (inv.paidAmount || 0)) > 0 && <span><strong>Balance:</strong> ₹{Math.max(0, inv.grandTotal - (inv.paidAmount || 0)).toLocaleString('en-IN')}</span>}
             </div>
 
             {/* Items Table */}
