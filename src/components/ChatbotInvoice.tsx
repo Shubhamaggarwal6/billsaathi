@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Printer, Pencil, Trash2, RotateCcw, Home, FileText, Download, Share2, ArrowLeft, Plus, Package, Car, User, Hash } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Customer, Product, InvoiceItem, Invoice, Payment, CreditNote, DebitNote } from '@/lib/types';
+import type { Customer, Product, InvoiceItem, Invoice, Payment, CreditNote } from '@/lib/types';
 
 // State machine
 type ChatStep =
