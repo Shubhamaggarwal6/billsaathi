@@ -994,7 +994,7 @@ export default function ChatbotInvoice() {
     }
   };
 
-  const noInputSteps: ChatStep[] = ['confirm-customer', 'more-products', 'payment-mode', 'cn-return-type', 'cn-more-products', 'ask-credit-note', 'cn-amount-gst'];
+  const noInputSteps: ChatStep[] = ['confirm-customer', 'more-products', 'payment-mode', 'payment-status', 'cn-return-type', 'cn-more-products', 'ask-credit-note', 'cn-amount-gst'];
   const showInput = panelMode === 'chat' && startChoice && !noInputSteps.includes(step);
 
   const totalAmount = items.reduce((s, i) => s + i.price * i.quantity, 0);
