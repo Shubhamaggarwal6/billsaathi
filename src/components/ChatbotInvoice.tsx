@@ -1327,12 +1327,12 @@ export default function ChatbotInvoice() {
                     onChange={e => setPartialAmountInput(e.target.value)}
                     placeholder="Kitna payment mila?"
                   />
-                  <p className="text-xs text-muted-foreground text-center">⚡ Debit note auto-banega balance ke liye</p>
+                  <p className="text-xs text-muted-foreground text-center">Balance: ₹{Math.max(0, lastCreatedInvoice.grandTotal - (Number(partialAmountInput) || lastCreatedInvoice.paidAmount || 0)).toLocaleString('en-IN')}</p>
                 </div>
               )}
 
               {donePaymentStatus === 'pending' && (
-                <p className="text-xs text-muted-foreground text-center">⏳ Debit note auto-banega full amount ke liye</p>
+                <p className="text-xs text-muted-foreground text-center">No payment received yet</p>
               )}
 
               {donePaymentStatus === 'paid' && (
