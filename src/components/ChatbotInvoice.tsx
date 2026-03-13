@@ -829,6 +829,7 @@ export default function ChatbotInvoice() {
       totalAmount, totalGst, totalCgst, totalSgst, totalIgst, grandTotal, roundOff,
       isInterState, placeOfSupply: buyerState?.name || '',
       status: 'pending', paidAmount: 0,
+      paymentMode: '', paymentReference: '', receivedAmount: 0,
       createdBy: { id: currentUser!.id, name: currentUser!.firmName || currentUser!.username, role: currentUser!.role, timestamp: new Date().toISOString() },
     };
     
@@ -844,9 +845,10 @@ export default function ChatbotInvoice() {
     
     // Ask payment mode
     addMsg('bot', 'Payment kaise liya?',
-      ['💵 Cash', '📱 UPI', '🏦 NEFT', '🏦 RTGS', '🧾 Cheque', '⏳ Baad Mein / Credit']);
+      ['💵 Cash', '📱 UPI', '🏦 NEFT', '🏦 RTGS', '🧾 Cheque', '⏳ Baad Mein / Credit'],
+      ['payCash', 'payUpi', 'payNeft', 'payRtgs', 'payCheque', 'payCredit']);
     setStep('payment-mode');
-    // Stay in chat panel for payment mode selection
+    setPanelMode('chat');
   };
 
   // Finalize invoice payment and move to done screen
