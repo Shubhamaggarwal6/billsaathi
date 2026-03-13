@@ -982,8 +982,8 @@ export default function ChatbotInvoice() {
       case 'new-product-unit': return t('phUnit');
       case 'payment-partial-amount': return 'Received amount ₹';
       case 'payment-ref': return 'Reference no. (Enter = skip)';
+      case 'cn-select-invoice': return 'Invoice no. ya Enter to skip';
       case 'cn-select-products': return 'e.g. 1,2,3';
-      case 'cn-product-qty': case 'cn-manual-product-qty': return 'Quantity (Enter = full)';
       case 'cn-product-rate': case 'cn-manual-product-rate': return 'Rate (Enter = original)';
       case 'cn-amount': return 'Amount ₹';
       case 'cn-misc-amount': case 'cn-extra-misc': return 'Amount ₹ (Enter = skip)';
