@@ -75,6 +75,7 @@ export function invoiceToDocData(inv: Invoice): UnifiedDocData {
     totalCgst: inv.totalCgst, totalSgst: inv.totalSgst, totalIgst: inv.totalIgst,
     grandTotal: inv.grandTotal, roundOff: inv.roundOff, isInterState: inv.isInterState,
     placeOfSupply: inv.placeOfSupply, status: inv.status, paidAmount: inv.paidAmount,
+    paymentMode: inv.paymentMode, paymentReference: inv.paymentReference, receivedAmount: inv.receivedAmount,
   };
 }
 
