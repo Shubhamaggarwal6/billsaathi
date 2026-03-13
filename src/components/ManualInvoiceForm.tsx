@@ -13,7 +13,7 @@ interface Props {
 }
 
 export default function ManualInvoiceForm({ onClose }: Props) {
-  const { currentUser, users, customers, products, invoices, setCustomers, setProducts, setInvoices, setPayments, debitNotes, setDebitNotes } = useApp();
+  const { currentUser, users, customers, products, invoices, setCustomers, setProducts, setInvoices, setPayments } = useApp();
   const { t } = useLanguage();
 
   const userId = currentUser?.role === 'employee' ? currentUser.parentUserId! : currentUser?.id!;
