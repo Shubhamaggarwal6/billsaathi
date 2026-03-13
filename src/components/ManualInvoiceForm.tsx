@@ -6,14 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ArrowLeft, Plus, Trash2, Search } from 'lucide-react';
-import type { Customer, Product, InvoiceItem, Invoice, Payment, DebitNote } from '@/lib/types';
+import type { Customer, Product, InvoiceItem, Invoice, Payment } from '@/lib/types';
 
 interface Props {
   onClose: () => void;
 }
 
 export default function ManualInvoiceForm({ onClose }: Props) {
-  const { currentUser, users, customers, products, invoices, setCustomers, setProducts, setInvoices, setPayments, debitNotes, setDebitNotes } = useApp();
+  const { currentUser, users, customers, products, invoices, setCustomers, setProducts, setInvoices, setPayments } = useApp();
   const { t } = useLanguage();
 
   const userId = currentUser?.role === 'employee' ? currentUser.parentUserId! : currentUser?.id!;
@@ -128,23 +128,6 @@ export default function ManualInvoiceForm({ onClose }: Props) {
         timestamp: new Date().toISOString(),
       };
       setPayments(prev => [...prev, payment]);
-    }
-
-    // Auto debit note for partial/pending
-    if (paymentStatus === 'partial' || paymentStatus === 'pending') {
-      const balance = gt - paidAmt;
-      const year = new Date().getFullYear();
-      const dnNumber = `DN-${year}-${String(debitNotes.length + 1).padStart(4, '0')}`;
-      const dn: DebitNote = {
-        id: crypto.randomUUID(), userId, debitNoteNumber: dnNumber, date: invDate,
-        originalInvoiceId: invoice.id, originalInvoiceNumber: invNum,
-        customerId: selectedCustomer.id, customerName: selectedCustomer.name,
-        reason: paymentStatus === 'partial' ? 'Partial payment — balance due' : 'Payment pending',
-        items: [], subtotal: balance, cgst: 0, sgst: 0, igst: 0, total: balance,
-        isInterState: false, status: 'active',
-        createdBy: { id: currentUser!.id, name: currentUser!.firmName || currentUser!.username, role: currentUser!.role, timestamp: new Date().toISOString() },
-      };
-      setDebitNotes(prev => [...prev, dn]);
     }
 
     onClose();

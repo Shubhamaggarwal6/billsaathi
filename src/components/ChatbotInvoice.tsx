@@ -3,12 +3,12 @@ import { useApp } from '@/contexts/AppContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { numberToWords } from '@/lib/subscription';
 import { getStateFromGST } from '@/lib/types';
-import { printDoc, downloadDocPDF, invoiceToDocData, creditNoteToDocData, debitNoteToDocData, type UnifiedDocData } from '@/lib/invoiceRenderer';
+import { printDoc, downloadDocPDF, invoiceToDocData, creditNoteToDocData, type UnifiedDocData } from '@/lib/invoiceRenderer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Printer, Pencil, Trash2, RotateCcw, Home, FileText, Download, Share2, ArrowLeft, Plus, Package, Car, User, Hash } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Customer, Product, InvoiceItem, Invoice, Payment, CreditNote, DebitNote } from '@/lib/types';
+import type { Customer, Product, InvoiceItem, Invoice, Payment, CreditNote } from '@/lib/types';
 
 // State machine
 type ChatStep =
@@ -42,7 +42,7 @@ interface Message {
 }
 
 export default function ChatbotInvoice() {
-  const { currentUser, users, customers, products, invoices, payments, setCustomers, setProducts, setInvoices, setPayments, creditNotes, debitNotes, setCreditNotes, setDebitNotes } = useApp();
+  const { currentUser, users, customers, products, invoices, payments, setCustomers, setProducts, setInvoices, setPayments, creditNotes, setCreditNotes } = useApp();
   const { t } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -74,7 +74,7 @@ export default function ChatbotInvoice() {
   const [donePaymentStatus, setDonePaymentStatus] = useState<'paid' | 'partial' | 'pending'>('paid');
   const [partialAmountInput, setPartialAmountInput] = useState('');
   const [paymentFinalized, setPaymentFinalized] = useState(false);
-  const [createdDebitNote, setCreatedDebitNote] = useState<DebitNote | null>(null);
+  
   
   // CN flow state
   const [cnCustomer, setCnCustomer] = useState<Customer | null>(null);
@@ -761,20 +761,6 @@ export default function ChatbotInvoice() {
     setPanelMode('cn-done');
   };
 
-  const createSilentDebitNote = (inv: Invoice, balanceDue: number, reason: string) => {
-    const dnNumber = generateNoteNumber('DN', debitNotes);
-    const dn: DebitNote = {
-      id: crypto.randomUUID(), userId, debitNoteNumber: dnNumber,
-      date: new Date().toISOString().split('T')[0],
-      originalInvoiceId: inv.id, originalInvoiceNumber: inv.invoiceNumber,
-      customerId: inv.customerId, customerName: inv.customerName,
-      reason, items: [], subtotal: balanceDue, cgst: 0, sgst: 0, igst: 0,
-      total: balanceDue, isInterState: false, status: 'active',
-      createdBy: { id: currentUser!.id, name: currentUser!.firmName || currentUser!.username, role: currentUser!.role, timestamp: new Date().toISOString() },
-    };
-    setDebitNotes(prev => [...prev, dn]);
-    return dn;
-  };
 
   // ---- Invoice creation ----
   const createInvoice = () => {
@@ -840,10 +826,7 @@ export default function ChatbotInvoice() {
       setDonePaymentStatus('paid');
     } else {
       setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'pending', paidAmount: 0 } : i));
-      const dn = createSilentDebitNote(inv, inv.grandTotal, 'Payment pending');
-      setCreatedDebitNote(dn);
       setDonePaymentStatus('pending');
-      toast.success(`✅ ${dn.debitNoteNumber} ban gayi`);
     }
     
     setSelectedPaymentMode(mode);
@@ -872,16 +855,9 @@ export default function ChatbotInvoice() {
           note: `Partial payment for ${inv.invoiceNumber}`, timestamp: new Date().toISOString(),
         };
         setPayments(prev => [...prev, payment]);
-        const balance = inv.grandTotal - amt;
-        const dn = createSilentDebitNote(inv, balance, 'Partial payment — balance due');
-        setCreatedDebitNote(dn);
-        toast.success(`✅ ${dn.debitNoteNumber} ban gayi`);
       }
     } else {
       setInvoices(prev => prev.map(i => i.id === inv.id ? { ...i, status: 'pending', paidAmount: 0 } : i));
-      const dn = createSilentDebitNote(inv, inv.grandTotal, 'Payment pending');
-      setCreatedDebitNote(dn);
-      toast.success(`✅ ${dn.debitNoteNumber} ban gayi`);
     }
   };
 
@@ -908,7 +884,7 @@ export default function ChatbotInvoice() {
     setLastCreatedInvoice(null); setDocType('invoice');
     setSelectedPaymentMode(''); setPaymentRef('');
     setDonePaymentStatus('paid'); setPartialAmountInput('');
-    setPaymentFinalized(false); setCreatedDebitNote(null);
+    setPaymentFinalized(false);
     setCnCustomer(null); setCnInvoice(null);
     setCnReturnType(null); setCnProductsQueue([]); setCnProductsDone([]);
     setCnCurrentProductIndex(0); setCnMoreProductsAsked(false);
@@ -1269,17 +1245,17 @@ export default function ChatbotInvoice() {
                 <Button
                   variant={donePaymentStatus === 'paid' ? 'default' : 'outline'}
                   className={`min-h-[44px] text-xs ${donePaymentStatus === 'paid' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}
-                  onClick={() => { setDonePaymentStatus('paid'); setPaymentFinalized(false); setCreatedDebitNote(null); }}
+                  onClick={() => { setDonePaymentStatus('paid'); setPaymentFinalized(false); }}
                 >✅ Paid</Button>
                 <Button
                   variant={donePaymentStatus === 'partial' ? 'default' : 'outline'}
                   className={`min-h-[44px] text-xs ${donePaymentStatus === 'partial' ? 'bg-amber-600 hover:bg-amber-700' : ''}`}
-                  onClick={() => { setDonePaymentStatus('partial'); setPaymentFinalized(false); setCreatedDebitNote(null); }}
+                  onClick={() => { setDonePaymentStatus('partial'); setPaymentFinalized(false); }}
                 >⚡ Partial</Button>
                 <Button
                   variant={donePaymentStatus === 'pending' ? 'default' : 'outline'}
                   className={`min-h-[44px] text-xs ${donePaymentStatus === 'pending' ? 'bg-red-600 hover:bg-red-700' : ''}`}
-                  onClick={() => { setDonePaymentStatus('pending'); setPaymentFinalized(false); setCreatedDebitNote(null); }}
+                  onClick={() => { setDonePaymentStatus('pending'); setPaymentFinalized(false); }}
                 >⏳ Not Now</Button>
               </div>
               
@@ -1319,26 +1295,6 @@ export default function ChatbotInvoice() {
                 </div>
               )}
             </div>
-
-            {/* Show created debit note info after finalization */}
-            {paymentFinalized && createdDebitNote && (
-              <div className="glass-card p-3 space-y-2">
-                <p className="text-sm font-semibold text-foreground">
-                  {donePaymentStatus === 'partial' ? '⚡' : '⏳'} Debit Note Created
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {createdDebitNote.debitNoteNumber} • {donePaymentStatus === 'partial' ? `Balance: ₹${createdDebitNote.total.toLocaleString('en-IN')}` : `₹${createdDebitNote.total.toLocaleString('en-IN')} Pending`}
-                </p>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={async () => {
-                    await downloadDocPDF(debitNoteToDocData(createdDebitNote), { type: 'debit_note', firm });
-                  }} className="min-h-[36px]">📄 PDF</Button>
-                  <Button size="sm" variant="outline" onClick={() => {
-                    printDoc(debitNoteToDocData(createdDebitNote), { type: 'debit_note', firm });
-                  }} className="min-h-[36px]">🖨️ Print</Button>
-                </div>
-              </div>
-            )}
 
             <div className="flex gap-2">
               <Button onClick={handleNewInvoice} className="flex-1 min-h-[48px]">➕ New Invoice</Button>
